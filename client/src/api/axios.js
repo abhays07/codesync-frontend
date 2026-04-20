@@ -5,6 +5,7 @@ const baseURL =
 
 const api = axios.create({
   baseURL,
+  withCredentials: true
 });
 
 // The "Interceptor": Think of this as a checkpoint for every outgoing request

@@ -1,44 +1,78 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Register from './features/auth/Register';
-import Login from './features/auth/Login';
-import ProtectedRoute from './components/ProtectedRoute';
+import { AnimatePresence, motion } from "framer-motion";
+import { Toaster } from "react-hot-toast";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
+import StickyNavbar from "./components/layout/StickyNavbar";
+import AuthPage from "./features/auth/AuthPage";
+import HomePage from "./features/home/HomePage";
+import ProjectDashboard from "./features/projects/ProjectDashboard";
+import OAuthCallback from "./features/auth/OAuthCallback";
+import ProfileSettings from "./features/profile/ProfileSettings";
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        
-        {/* Protected Dashboard Route */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-      </Routes>
-    </Router>
+    <>
+      <StickyNavbar />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+        >
+          <Routes location={location}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <ProjectDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <ProfileSettings />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/oauth-success" element={<OAuthCallback />} />
+          </Routes>
+        </motion.div>
+      </AnimatePresence>
+    </>
   );
 }
 
-// Temporary Dashboard Component
-const Dashboard = () => {
-    return (
-        <div className="min-h-screen bg-[#070F2B] text-white p-8">
-            <h1 className="text-3xl font-bold text-[#9290C3]">CodeSync Dashboard</h1>
-            <p className="mt-4 text-gray-400">Authenticated successfully. Microservice connectivity active.</p>
-            <button 
-                onClick={() => { localStorage.removeItem('token'); window.location.reload(); }}
-                className="mt-6 bg-red-500/20 text-red-400 border border-red-500/50 px-4 py-2 rounded hover:bg-red-500/30 transition-all"
-            >
-                Logout
-            </button>
-        </div>
-    );
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            border: "1px solid #535C91",
+            background: "#1B1A55",
+            color: "#E8E8FF",
+          },
+        }}
+        containerStyle={{ zIndex: 70 }}
+      />
+      <AppRoutes />
+    </BrowserRouter>
+  );
 }
-
-export default App;
