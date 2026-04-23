@@ -14,25 +14,37 @@ import HomePage from "./features/home/HomePage";
 import ProjectDashboard from "./features/projects/ProjectDashboard";
 import OAuthCallback from "./features/auth/OAuthCallback";
 import ProfileSettings from "./features/profile/ProfileSettings";
+import EditorPage from "./pages/EditorPage"; // New Editor Page
 
 function AppRoutes() {
   const location = useLocation();
 
+  // Logic: Hide global navbar if user is in the editor to maximize space
+  const isEditor = location.pathname.startsWith("/editor/");
+
   return (
     <>
-      <StickyNavbar />
+      {/* Show Navbar only when NOT in the editor */}
+      {!isEditor && <StickyNavbar />}
+
       <AnimatePresence mode="wait">
         <motion.div
           key={location.pathname}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: isEditor ? 0 : 8 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
+          exit={{ opacity: 0, y: isEditor ? 0 : -8 }}
           transition={{ duration: 0.2 }}
+          // Ensure the container fills the screen if in editor mode
+          className={isEditor ? "h-screen" : ""}
         >
           <Routes location={location}>
+            {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/oauth-success" element={<OAuthCallback />} />
+
+            {/* Private Dashboard Route */}
             <Route
               path="/dashboard"
               element={
@@ -41,6 +53,8 @@ function AppRoutes() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Private Profile Route */}
             <Route
               path="/settings"
               element={
@@ -49,8 +63,19 @@ function AppRoutes() {
                 </ProtectedRoute>
               }
             />
+
+            {/* NEW: Private Code Editor Route */}
+            <Route
+              path="/editor/:projectId"
+              element={
+                <ProtectedRoute>
+                  <EditorPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Catch-all Redirect */}
             <Route path="*" element={<Navigate to="/" replace />} />
-            <Route path="/oauth-success" element={<OAuthCallback />} />
           </Routes>
         </motion.div>
       </AnimatePresence>
@@ -61,6 +86,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Global Toast Configuration */}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -70,7 +96,7 @@ export default function App() {
             color: "#E8E8FF",
           },
         }}
-        containerStyle={{ zIndex: 70 }}
+        containerStyle={{ zIndex: 100 }} // Ensure it stays above everything
       />
       <AppRoutes />
     </BrowserRouter>

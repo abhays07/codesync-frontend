@@ -4,6 +4,9 @@ import api from '../axios';
  * PROJECT RETRIEVAL SERVICES
  */
 
+// Fetches a single project by its unique ID to load metadata in the IDE
+export const getProjectById = (projectId) => api.get(`/projects/${projectId}`);
+
 // Fetches all projects owned by the logged-in developer
 export const getOwnerProjects = (ownerId) => api.get(`/projects/owner/${ownerId}`);
 
