@@ -17,6 +17,9 @@ export const searchProjects = (name, userId) => api.get(`/projects/search?name=$
 // Fetches all public projects for discovery
 export const getPublicProjects = (userId) => api.get(`/projects/public?currentUserId=${userId}`);
 
+// Fetches all public projects for discovery (without current user ID)
+export const getPublicProjectsNoCurrentUserId = () => api.get('/projects/public');
+
 // Filters projects by programming language 
 export const getProjectsByLanguage = (lang) => api.get(`/projects/language/${lang}`);
 
@@ -41,3 +44,18 @@ export const starProject = (projectId, userId) =>
 // Creates a personal copy of a public project 
 export const forkProject = (projectId, userId) => 
     api.post(`/projects/${projectId}/fork?userId=${userId}`);
+
+// Requests collaboration access on a project
+export const requestCollaborationAccess = (projectId, userId, username) => api.post(`/projects/${projectId}/members/request?userId=${userId}&username=${username}`);
+
+// Checks if a user has edit permissions for a project
+export const checkEditAccess = (projectId, userId) => api.get(`/projects/${projectId}/access?userId=${userId}`);
+
+// Fetches pending collaboration requests for a project
+export const getPendingRequests = (projectId) => api.get(`/projects/${projectId}/requests`);
+
+// Approves a collaborator on a project
+export const approveCollaborator = (projectId, userId) => api.post(`/projects/${projectId}/members/approve?userId=${userId}`);
+
+// Fetches users who currently have project access
+export const getProjectMembers = (projectId) => api.get(`/projects/${projectId}/members`);

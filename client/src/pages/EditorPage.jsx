@@ -1,12 +1,57 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { getProjectTree } from "../api/services/fileService";
-import { getProjectById } from "../api/services/projectService";
+import { getProjectById, requestCollaborationAccess, checkEditAccess, getProjectMembers } from "../api/services/projectService";
+import { createCollabSession, joinCollabSession, getSessionParticipants } from "../api/services/collabService";
+import { subscribeToSession, disconnectWebSocket } from "../api/webSocket";
 import FileTree from "../components/editor/FileTree";
 import CodeEditor from "../components/editor/CodeEditor";
 import GlobalSearch from "../components/editor/GlobalSearch";
-import { Files, Search, ArrowLeft } from "lucide-react";
+import { Files, Search, ArrowLeft, Users } from "lucide-react";
+import CollabPanel from "../components/editor/CollabPanel";
+
+const findNodeById = (nodes, targetId) => {
+  if (!Array.isArray(nodes) || !targetId) return null;
+  for (const node of nodes) {
+    if (node?.id === targetId) return node;
+    if (node?.children?.length) {
+      const found = findNodeById(node.children, targetId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const collectNumericFileIds = (nodes, into = []) => {
+  if (!Array.isArray(nodes)) return into;
+  for (const node of nodes) {
+    if (!node) continue;
+    const isFile = String(node.type || '').toUpperCase() === 'FILE' || String(node.id || '').startsWith('file-');
+    if (isFile && typeof node.id === 'string') {
+      const parts = node.id.split('-');
+      const numeric = Number(parts[1]);
+      if (Number.isFinite(numeric)) into.push(numeric);
+    }
+    if (node.children?.length) collectNumericFileIds(node.children, into);
+  }
+  return into;
+};
+
+const mergeParticipants = (a = [], b = []) => {
+  const byId = new Map();
+  [...a, ...b].forEach((p) => {
+    const id = p?.userId ?? p?.id ?? p?.user?.userId ?? p?.user?.id;
+    if (!id) return;
+    byId.set(String(id), { ...p, userId: id });
+  });
+  return Array.from(byId.values());
+};
+
+const getUserId = (user) => user?.userId || user?.id || user?.user?.userId || user?.user?.id;
+const getUserName = (user) => (
+  user?.username || user?.userName || user?.name || user?.user?.username || user?.user?.name
+);
 
 export default function EditorPage() {
   const { projectId } = useParams();
@@ -16,19 +61,62 @@ export default function EditorPage() {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('explore');
+  const [currentSession, setCurrentSession] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  const [presenceSession, setPresenceSession] = useState(null);
+  const [presenceParticipants, setPresenceParticipants] = useState([]);
+  const [fileParticipants, setFileParticipants] = useState([]);
+  const [cursors, setCursors] = useState([]);
+  const [remoteCode, setRemoteCode] = useState(null);
+  const [activeTypers, setActiveTypers] = useState({});
+  const [isReadOnly, setIsReadOnly] = useState(true);
+  const [hasRequested, setHasRequested] = useState(false);
+  const [projectMembers, setProjectMembers] = useState([]);
+  const sessionGuardRef = useRef(null);
 
   const storedUser = useMemo(
     () => JSON.parse(localStorage.getItem("user")),
     [],
   );
+  
   const userId = storedUser?.userId || storedUser?.id;
+  
+  const currentUser = useMemo(() => ({
+    userId,
+    username: storedUser?.username || storedUser?.name || `User ${userId}`,
+  }), [storedUser, userId]);
+
+  const isOwner = useMemo(() => {
+    if (!project || !userId) return false;
+    const ownerId = project.ownerId || project.owner_id || project.owner?.id || project.owner?.userId;
+    return String(ownerId) === String(userId);
+  }, [project, userId]);
 
   const fetchTree = async () => {
     try {
       const res = await getProjectTree(projectId);
       setFiles(res.data);
     } catch (err) {
-      console.error("Failed to load file tree");
+      console.error("Failed to load file tree", err);
+    }
+  };
+
+  const handleOpenFile = async (fileNode) => {
+    if (!fileNode?.id) return;
+
+    // Always pull the latest tree snapshot before opening a file so
+    // remote edits are visible without a manual browser refresh.
+    try {
+      const res = await getProjectTree(projectId);
+      const latestTree = res.data;
+      setFiles(latestTree);
+
+      const latestNode = findNodeById(latestTree, fileNode.id) || fileNode;
+      setActiveFile(latestNode);
+    } catch (err) {
+      console.error("Failed to refresh project tree", err);
+      // Fallback: open whatever we have locally.
+      setActiveFile(fileNode);
     }
   };
 
@@ -36,32 +124,236 @@ export default function EditorPage() {
     const initPage = async () => {
       setLoading(true);
       try {
-        const [treeRes, projRes] = await Promise.all([
+        const [treeRes, projRes, accessRes, membersRes] = await Promise.all([
           getProjectTree(projectId),
           getProjectById(projectId),
+          checkEditAccess(projectId, userId),
+          getProjectMembers(projectId).catch(() => ({ data: [] }))
         ]);
         setFiles(treeRes.data);
         setProject(projRes.data);
+        setProjectMembers(membersRes.data || []);
+        
+        // Logic: if user is NOT owner AND checkEditAccess returns false, then readOnly is true
+        setIsReadOnly(!accessRes.data);
       } catch (err) {
+        console.error("Failed to load environment", err);
         toast.error("Failed to load environment");
       } finally {
         setLoading(false);
       }
     };
-    initPage();
-  }, [projectId]);
+    if (projectId && userId) {
+      initPage();
+    }
+  }, [projectId, userId]);
 
-  const isReadOnly = useMemo(() => {
-    if (!project || !userId) return true;
-    // Handle both cases: backend returning ownerId directly, or nested owner object
-    const pOwnerId = project.ownerId || project.owner?.id;
-    return String(pOwnerId) !== String(userId);
-  }, [project, userId]);
+  const handleRequestAccess = async () => {
+    try {
+      // Pass userId AND the formatted username from currentUser
+      await requestCollaborationAccess(projectId, userId, currentUser.username);
+      toast.success("Collaboration request sent!");
+      setHasRequested(true);
+    } catch (error) {
+      console.error("Failed to send collaboration request", error);
+      toast.error("Failed to send request. You may have already requested access.");
+    }
+  };
+
+  const markTyping = (typingUserId) => {
+    if (!typingUserId) return;
+    setActiveTypers((prev) => ({
+      ...prev,
+      [typingUserId]: Date.now(),
+    }));
+  };
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const now = Date.now();
+      setActiveTypers((prev) => {
+        const next = {};
+        Object.entries(prev).forEach(([typingUserId, lastSeen]) => {
+          if (now - lastSeen < 2500) {
+            next[typingUserId] = lastSeen;
+          }
+        });
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const numericFileId = activeFile?.id?.split('-')[1];
+    
+    if (numericFileId && currentSession?.fileId === parseInt(numericFileId, 10)) return;
+
+    if (numericFileId && userId && project) {
+      if (sessionGuardRef.current === numericFileId) return;
+      sessionGuardRef.current = numericFileId;
+
+      const initSession = async () => {
+        try {
+          const sessionRes = await createCollabSession(projectId, numericFileId, userId);
+          const session = sessionRes.data;
+          
+          setCurrentSession(session);
+  
+          const role = isReadOnly ? "VIEWER" : "EDITOR";
+          await joinCollabSession(session.sessionId, userId, role);
+          
+          toast.success(`Joined as ${role}`);
+        } catch (err) {
+          sessionGuardRef.current = null;
+          console.error("Collab session loop blocked or failed", err);
+        }
+      };
+      initSession();
+    }
+  }, [activeFile?.id, userId, project?.id, projectId, isReadOnly, currentSession?.fileId]);
+
+  // Project-wide presence session: everyone joins this immediately so all active project members
+  // show up in every user's collaboration panel (even before selecting a file).
+  useEffect(() => {
+    if (!projectId || !userId) return;
+    if (!files || files.length === 0) return;
+    if (presenceSession?.sessionId) return;
+
+    const initPresence = async () => {
+      try {
+        const ids = collectNumericFileIds(files);
+        if (ids.length === 0) return;
+        const anchorFileId = Math.min(...ids);
+
+        const sessionRes = await createCollabSession(projectId, anchorFileId, userId);
+        const session = sessionRes.data;
+        setPresenceSession(session);
+
+        const role = isReadOnly ? "VIEWER" : "EDITOR";
+        await joinCollabSession(session.sessionId, userId, role);
+
+        const res = await getSessionParticipants(session.sessionId);
+        setPresenceParticipants(res.data);
+      } catch (err) {
+        console.error("Presence session failed to initialize", err);
+      }
+    };
+
+    initPresence();
+  }, [projectId, userId, files, isReadOnly, presenceSession?.sessionId]);
+
+  useEffect(() => {
+    if (currentSession) {
+      let unsubscribe = () => {};
+
+      const refreshParticipants = () => {
+        getSessionParticipants(currentSession.sessionId)
+          .then(res => setFileParticipants(res.data))
+          .catch(err => console.warn("Failed to refresh participants", err));
+      };
+
+      subscribeToSession(currentSession.sessionId, (update) => {
+        const updateType = String(update.type || update.eventType || '').toUpperCase();
+        if (updateType === 'CURSOR_UPDATE') {
+          setCursors(prev => {
+            const existing = prev.find(c => c.userId === update.userId);
+            if (existing) {
+              return prev.map(c => c.userId === update.userId ? update : c);
+            }
+            return [...prev, update];
+          });
+        } else if (updateType === 'CODE_UPDATE' || updateType === 'CONTENT_UPDATE') {
+          const incomingFileId = String(update.fileId || update.file?.id || '');
+          const normalizedFileId = incomingFileId.startsWith('file-')
+            ? incomingFileId
+            : incomingFileId
+              ? `file-${incomingFileId}`
+              : activeFile?.id;
+
+          markTyping(update.userId);
+
+          if (activeFile?.id === normalizedFileId && String(update.userId) !== String(userId)) {
+            const content = update.content ?? update.code ?? update.value ?? '';
+            const version = update.timestamp || update.version || Date.now();
+
+            setRemoteCode({
+              fileId: normalizedFileId,
+              content,
+              userId: update.userId,
+              version,
+            });
+
+            setActiveFile((prev) => prev?.id === normalizedFileId
+              ? { ...prev, content }
+              : prev
+            );
+          }
+        } else if (updateType === 'PARTICIPANT_JOIN' || updateType === 'PARTICIPANT_LEAVE') {
+          refreshParticipants();
+        }
+      }, 'session:file')
+        .then((u) => { unsubscribe = u; })
+        .catch(() => {});
+
+      refreshParticipants();
+
+      return () => {
+        try { unsubscribe(); } catch {}
+      };
+    }
+  }, [currentSession, activeFile?.id, userId]);
+
+  useEffect(() => {
+    if (!presenceSession?.sessionId) return;
+
+    const refreshPresence = () => {
+      getSessionParticipants(presenceSession.sessionId)
+        .then(res => setPresenceParticipants(res.data))
+        .catch(err => console.warn("Failed to refresh presence participants", err));
+    };
+
+    let unsubscribe = () => {};
+    subscribeToSession(presenceSession.sessionId, (update) => {
+      const updateType = String(update.type || update.eventType || '').toUpperCase();
+      if (updateType === 'PARTICIPANT_JOIN' || updateType === 'PARTICIPANT_LEAVE') {
+        refreshPresence();
+      }
+    }, 'session:presence')
+      .then((u) => { unsubscribe = u; })
+      .catch(() => {});
+
+    refreshPresence();
+
+    return () => {
+      try { unsubscribe(); } catch {}
+    };
+  }, [presenceSession?.sessionId]);
+
+  useEffect(() => {
+    setParticipants(mergeParticipants(presenceParticipants, fileParticipants));
+  }, [presenceParticipants, fileParticipants]);
+
+  useEffect(() => () => {
+    disconnectWebSocket();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#070F2B] text-sm text-[#9290C3]">
+        <div className="flex flex-col items-center gap-3">
+            <div className="w-6 h-6 border-2 border-[#9290C3] border-t-transparent rounded-full animate-spin"></div>
+            <span>Syncing Workspace...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#070F2B] overflow-hidden">
-{/* LEFT: Activity Bar */}
-      <div className="w-12 border-r border-[#535C91]/30 bg-[#1B1A55]/40 flex flex-col items-center justify-between py-4 gap-4 z-10 flex-shrink-0">
+      {/* LEFT: Activity Bar */}
+      <div className="w-12 border-r border-[#535C91]/30 bg-[#1B1A55]/40 flex flex-col items-center justify-between py-4 gap-4 z-10 shrink-0">
         <div className="flex flex-col items-center gap-4">
           <button 
             onClick={() => setActiveTab('explore')}
@@ -77,6 +369,13 @@ export default function EditorPage() {
           >
             <Search size={20} strokeWidth={1.5} />
           </button>
+          <button 
+            onClick={() => setActiveTab('collab')}
+            className={`p-2 rounded-xl transition-all ${activeTab === 'collab' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+            title="Collaboration"
+          >
+            <Users size={20} strokeWidth={1.5} />
+          </button>
         </div>
         <button
           onClick={() => navigate("/dashboard")}
@@ -88,16 +387,31 @@ export default function EditorPage() {
       </div>
 
       {/* SECONDARY SIDEBAR */}
-      <aside className="w-64 border-r border-[#535C91]/30 bg-[#1B1A55]/20 backdrop-blur-xl flex flex-col flex-shrink-0">
+      <aside className="w-64 border-r border-[#535C91]/30 bg-[#1B1A55]/20 backdrop-blur-xl flex flex-col shrink-0">
         {activeTab === 'explore' ? (
           <>
             <div className="p-4 border-b border-[#535C91]/30 flex-shrink-0">
               <h2 className="text-sm font-bold text-[#9290C3] uppercase tracking-widest">Explorer</h2>
             </div>
+            
+            {/* COLLABORATION REQUEST SECTION */}
+            {isReadOnly && !isOwner && (
+              <div className="p-4 bg-yellow-500/10 border-b border-yellow-500/20">
+                <p className="text-[11px] text-yellow-400/80 mb-2 text-center font-medium">VIEW-ONLY MODE</p>
+                <button 
+                  onClick={handleRequestAccess}
+                  disabled={hasRequested}
+                  className="w-full py-2 bg-yellow-500 text-[#070F2B] text-xs font-bold rounded-lg hover:bg-yellow-400 transition-all disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed shadow-lg"
+                >
+                  {hasRequested ? 'Request Sent' : 'Request Edit Access'}
+                </button>
+              </div>
+            )}
+
             <FileTree
               files={files}
               activeFile={activeFile}
-              onFileClick={(file) => setActiveFile(file)}
+              onFileClick={handleOpenFile}
               onRefresh={(deletedType, deletedId) => {
                 fetchTree();
                 if (deletedType && deletedId) {
@@ -112,7 +426,7 @@ export default function EditorPage() {
               readOnly={isReadOnly}
             />
           </>
-        ) : (
+        ) : activeTab === 'search' ? (
           <>
             <div className="p-4 border-b border-[#535C91]/30 flex-shrink-0">
               <h2 className="text-sm font-bold text-[#9290C3] uppercase tracking-widest">Search</h2>
@@ -122,6 +436,15 @@ export default function EditorPage() {
               onFileSelect={(file) => setActiveFile(file)}
             />
           </>
+        ) : (
+          <CollabPanel
+            participants={participants}
+            projectId={projectId}
+            isOwner={isOwner}
+            currentUser={currentUser}
+            activeTypers={activeTypers}
+            sessionId={currentSession?.sessionId}
+          />
         )}
       </aside>
 
@@ -133,10 +456,25 @@ export default function EditorPage() {
             file={activeFile}
             readOnly={isReadOnly}
             userId={userId}
+            sessionId={currentSession?.sessionId}
+            cursors={cursors.filter(c => c.userId !== userId).map(c => {
+               const p = participants.find(part => String(getUserId(part)) === String(c.userId));
+               const pm = projectMembers.find(m => String(getUserId(m)) === String(c.userId));
+               return {
+                 ...c,
+                 color: c.color || p?.color || '#06B6D4',
+                 username: pm?.username || getUserName(pm) || p?.username || c.username || `User ${c.userId}`
+               };
+            })}
+            remoteCode={remoteCode}
+            onLocalActivity={() => markTyping(userId)}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            <p>Select a file to start coding</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-[#1B1A55]/30 flex items-center justify-center border border-[#535C91]/20">
+                <Files size={32} className="opacity-20" />
+            </div>
+            <p className="text-sm font-medium">Select a file to start coding</p>
           </div>
         )}
       </main>
