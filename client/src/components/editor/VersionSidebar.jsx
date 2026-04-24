@@ -12,6 +12,7 @@ export default function VersionSidebar({ activeFile, userId, username, onVersion
   const fetchHistory = async () => {
     if (!activeFile?.id) return;
     const numericFileId = activeFile.id.split('-')[1];
+    if (!numericFileId) return;
     setFetchingHistory(true);
     try {
       const res = await getFileHistory(numericFileId);

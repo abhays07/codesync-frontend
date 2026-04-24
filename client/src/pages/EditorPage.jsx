@@ -8,12 +8,14 @@ import { subscribeToSession, disconnectWebSocket } from "../api/webSocket";
 import FileTree from "../components/editor/FileTree";
 import CodeEditor from "../components/editor/CodeEditor";
 import GlobalSearch from "../components/editor/GlobalSearch";
-import { Files, Search, ArrowLeft, Users, History } from "lucide-react";
+import { Files, Search, ArrowLeft, Users, History, MessageSquare } from "lucide-react";
 import CollabPanel from "../components/editor/CollabPanel";
 import { submitJob, getJobStatus } from "../api/services/executionService";
 import Terminal from "../components/editor/Terminal";
 import VersionSidebar from "../components/editor/VersionSidebar";
+import DiscussionSidebar from "../components/editor/DiscussionSidebar";
 import { DiffEditor } from '@monaco-editor/react';
+import { getCommentsByFile, addComment, deleteComment } from '../api/services/commentService';
 
 const findNodeById = (nodes, targetId) => {
   if (!Array.isArray(nodes) || !targetId) return null;
@@ -86,6 +88,9 @@ export default function EditorPage() {
   const [diffMode, setDiffMode] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(null);
 
+  const [comments, setComments] = useState([]);
+  const [scrollToLine, setScrollToLine] = useState(null);
+
   const storedUser = useMemo(
     () => JSON.parse(localStorage.getItem("user")),
     [],
@@ -113,6 +118,16 @@ export default function EditorPage() {
     }
   };
 
+  const fetchComments = async (numericFileId) => {
+    if (!numericFileId) return;
+    try {
+      const res = await getCommentsByFile(numericFileId);
+      setComments(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch comments", err);
+    }
+  };
+
   const handleOpenFile = async (fileNode) => {
     if (!fileNode?.id) return;
 
@@ -126,6 +141,11 @@ export default function EditorPage() {
       const latestNode = findNodeById(latestTree, fileNode.id) || fileNode;
       setActiveFile(latestNode);
       setDiffMode(false);
+      
+      const numericFileId = latestNode.id.split('-')[1];
+      if (numericFileId) {
+        fetchComments(numericFileId);
+      }
     } catch (err) {
       console.error("Failed to refresh project tree", err);
       // Fallback: open whatever we have locally.
@@ -143,6 +163,30 @@ export default function EditorPage() {
     setActiveFile(prev => ({ ...prev, content: restoredSnapshot.content }));
     setDiffMode(false);
     setSelectedVersion(null);
+  };
+
+  const handleCommentSubmit = async (data) => {
+    if (!activeFile?.id) return;
+    try {
+      const numericFileId = activeFile.id.split('-')[1];
+      if (!numericFileId) return;
+      await addComment({ ...data, fileId: numericFileId, userId, username: currentUser.username });
+      fetchComments(numericFileId);
+    } catch (err) {
+      toast.error("Failed to save comment");
+    }
+  };
+
+  const handleCommentDelete = async (id) => {
+    if (!activeFile?.id) return;
+    try {
+      const numericFileId = activeFile.id.split('-')[1];
+      if (!numericFileId) return;
+      await deleteComment(id);
+      fetchComments(numericFileId);
+    } catch (err) {
+      toast.error("Failed to delete comment");
+    }
   };
 
   useEffect(() => {
@@ -482,6 +526,13 @@ export default function EditorPage() {
           >
             <History size={20} strokeWidth={1.5} />
           </button>
+          <button 
+            onClick={() => setActiveTab('discuss')}
+            className={`p-2 rounded-xl transition-all ${activeTab === 'discuss' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+            title="Discussions"
+          >
+            <MessageSquare size={20} strokeWidth={1.5} />
+          </button>
         </div>
         <button
           onClick={() => navigate("/dashboard")}
@@ -550,6 +601,11 @@ export default function EditorPage() {
              onVersionSelect={handleVersionSelect}
              onRestore={handleRestore}
           />
+        ) : activeTab === 'discuss' ? (
+          <DiscussionSidebar
+            comments={comments}
+            onCommentClick={(line) => setScrollToLine(line)}
+          />
         ) : (
           <CollabPanel
             participants={participants}
@@ -615,6 +671,11 @@ export default function EditorPage() {
                 onLocalActivity={() => markTyping(userId)}
                 onRunCode={handleRunCode}
                 isRunning={isRunning}
+                comments={comments}
+                onCommentSubmit={handleCommentSubmit}
+                onCommentDelete={handleCommentDelete}
+                currentUser={currentUser}
+                scrollToLine={scrollToLine}
               />
             )}
             <Terminal

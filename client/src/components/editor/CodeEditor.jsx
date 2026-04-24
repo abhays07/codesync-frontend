@@ -1,9 +1,11 @@
 import Editor from '@monaco-editor/react';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { updateFileContent } from '../../api/services/fileService';
 import { updateCursorPosition } from '../../api/services/collabService';
 import { sendCodeChange } from '../../api/webSocket';
 import { CloudCheck, Loader2, Play } from 'lucide-react';
+import CommentOverlay from './CommentOverlay';
 
 // No external cursor wrapper, using CSS after pseudo-element with monaco widget
 
@@ -16,19 +18,93 @@ export default function CodeEditor({
   remoteCode,
   onLocalActivity,
   onRunCode,
-  isRunning
+  isRunning,
+  comments = [],
+  onCommentSubmit,
+  onCommentDelete,
+  currentUser,
+  scrollToLine
 }) {
   const [code, setCode] = useState(file.content || '');
   const [saving, setSaving] = useState(false);
   const timerRef = useRef(null);
   const cursorTimerRef = useRef(null);
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const lastRemoteKeyRef = useRef(null);
   const decorationsRef = useRef([]);
   const isRemoteUpdateRef = useRef(false);
+  
+  const [widgetLine, setWidgetLine] = useState(null);
+  const [commentWidgetNode, setCommentWidgetNode] = useState(null);
+  const commentDecorationsRef = useRef([]);
+
+  useEffect(() => {
+    const node = document.createElement('div');
+    node.className = "monaco-custom-content-widget";
+    // Important: block editor from stealing focus from the widget inputs
+    node.addEventListener('mousedown', (e) => e.stopPropagation());
+    setCommentWidgetNode(node);
+    return () => {
+      node.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (editorRef.current && commentWidgetNode && widgetLine) {
+      const widget = {
+        getId: () => 'comment.widget',
+        getDomNode: () => commentWidgetNode,
+        getPosition: () => ({
+          position: { lineNumber: widgetLine, column: 1 },
+          preference: [2] // BELOW
+        })
+      };
+      editorRef.current.addContentWidget(widget);
+      return () => editorRef.current.removeContentWidget(widget);
+    }
+  }, [widgetLine, commentWidgetNode]);
+
+  useEffect(() => {
+    if (scrollToLine && editorRef.current) {
+      editorRef.current.revealLineInCenter(scrollToLine);
+      setWidgetLine(scrollToLine);
+    }
+  }, [scrollToLine]);
+
+  useEffect(() => {
+    if (editorRef.current && monacoRef.current) {
+      const linesWithComments = [...new Set(comments.map(c => c.lineNumber))];
+      const newDecorations = linesWithComments.map(line => ({
+        range: new monacoRef.current.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: false,
+          glyphMarginClassName: 'comment-glyph-icon',
+          glyphMarginHoverMessage: { value: 'View Comments' }
+        }
+      }));
+
+      commentDecorationsRef.current = editorRef.current.deltaDecorations(
+        commentDecorationsRef.current,
+        newDecorations
+      );
+    }
+  }, [comments]);
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
+
+    // Listen for Gutter clicks to open comment widget
+    editor.onMouseDown((e) => {
+      if (
+        e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+        e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS
+      ) {
+        const lineNumber = e.target.position.lineNumber;
+        setWidgetLine(lineNumber);
+      }
+    });
 
     // Listen for Cursor Position Changes
     editor.onDidChangeCursorPosition((e) => {
@@ -42,11 +118,11 @@ export default function CodeEditor({
   };
 
   useEffect(() => {
-    if (editorRef.current && cursors) {
+    if (editorRef.current && monacoRef.current && cursors) {
       const newDecorations = cursors.map(cursor => {
         const { line, col, userId, username, color } = cursor;
         return {
-          range: new editorRef.current.monaco.Range(line, col, line, col),
+          range: new monacoRef.current.Range(line, col, line, col),
           options: {
             className: `remote-cursor-${userId}`,
             hoverMessage: {
@@ -153,8 +229,8 @@ export default function CodeEditor({
 
   return (
     <div className="flex-1 flex flex-col bg-[#070F2B] relative">
-      <style>
-        {cursors.map(c => `
+      <style>{`
+        ${cursors.map(c => `
           .remote-cursor-${c.userId} {
             border-left: 2px solid ${c.color} !important;
             box-sizing: border-box;
@@ -174,8 +250,35 @@ export default function CodeEditor({
             white-space: nowrap;
             pointer-events: none;
           }
-        `).join('\\n')}
-      </style>
+        `).join('\n')}
+        
+        .comment-glyph-icon::after {
+          content: '💬';
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          cursor: pointer;
+          opacity: 0.8;
+        }
+        .comment-glyph-icon:hover::after {
+          opacity: 1;
+        }
+      `}</style>
+      
+      {commentWidgetNode && widgetLine && createPortal(
+        <CommentOverlay 
+          lineNumber={widgetLine} 
+          comments={comments.filter(c => c.lineNumber === widgetLine)} 
+          onClose={() => setWidgetLine(null)}
+          onSubmit={onCommentSubmit}
+          onDelete={onCommentDelete}
+          currentUser={currentUser}
+        />, 
+        commentWidgetNode
+      )}
+
       {/* Editor Tab Header */}
       <div className="h-10 bg-[#1B1A55]/40 border-b border-[#535C91]/30 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -230,6 +333,7 @@ export default function CodeEditor({
             fontFamily: "'Fira Code', 'Cascadia Code', monospace",
             cursorSmoothCaretAnimation: "on",
             smoothScrolling: true,
+            glyphMargin: true,
             scrollbar: {
                 vertical: 'visible',
                 horizontal: 'visible',
