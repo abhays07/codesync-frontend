@@ -8,10 +8,12 @@ import { subscribeToSession, disconnectWebSocket } from "../api/webSocket";
 import FileTree from "../components/editor/FileTree";
 import CodeEditor from "../components/editor/CodeEditor";
 import GlobalSearch from "../components/editor/GlobalSearch";
-import { Files, Search, ArrowLeft, Users } from "lucide-react";
+import { Files, Search, ArrowLeft, Users, History } from "lucide-react";
 import CollabPanel from "../components/editor/CollabPanel";
 import { submitJob, getJobStatus } from "../api/services/executionService";
 import Terminal from "../components/editor/Terminal";
+import VersionSidebar from "../components/editor/VersionSidebar";
+import { DiffEditor } from '@monaco-editor/react';
 
 const findNodeById = (nodes, targetId) => {
   if (!Array.isArray(nodes) || !targetId) return null;
@@ -81,6 +83,8 @@ export default function EditorPage() {
   const [executionMetadata, setExecutionMetadata] = useState(null);
   const [showTerminal, setShowTerminal] = useState(false);
   const [currentJobId, setCurrentJobId] = useState(null);
+  const [diffMode, setDiffMode] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState(null);
 
   const storedUser = useMemo(
     () => JSON.parse(localStorage.getItem("user")),
@@ -121,11 +125,24 @@ export default function EditorPage() {
 
       const latestNode = findNodeById(latestTree, fileNode.id) || fileNode;
       setActiveFile(latestNode);
+      setDiffMode(false);
     } catch (err) {
       console.error("Failed to refresh project tree", err);
       // Fallback: open whatever we have locally.
       setActiveFile(fileNode);
+      setDiffMode(false);
     }
+  };
+
+  const handleVersionSelect = (ver) => {
+    setSelectedVersion(ver);
+    setDiffMode(true);
+  };
+
+  const handleRestore = (restoredSnapshot) => {
+    setActiveFile(prev => ({ ...prev, content: restoredSnapshot.content }));
+    setDiffMode(false);
+    setSelectedVersion(null);
   };
 
   useEffect(() => {
@@ -458,6 +475,13 @@ export default function EditorPage() {
           >
             <Users size={20} strokeWidth={1.5} />
           </button>
+          <button 
+            onClick={() => setActiveTab('version')}
+            className={`p-2 rounded-xl transition-all ${activeTab === 'version' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+            title="Version Control"
+          >
+            <History size={20} strokeWidth={1.5} />
+          </button>
         </div>
         <button
           onClick={() => navigate("/dashboard")}
@@ -518,6 +542,14 @@ export default function EditorPage() {
               onFileSelect={(file) => setActiveFile(file)}
             />
           </>
+        ) : activeTab === 'version' ? (
+          <VersionSidebar 
+             activeFile={activeFile}
+             userId={userId}
+             username={currentUser.username}
+             onVersionSelect={handleVersionSelect}
+             onRestore={handleRestore}
+          />
         ) : (
           <CollabPanel
             participants={participants}
@@ -534,26 +566,57 @@ export default function EditorPage() {
       <main className="flex-1 flex flex-col min-w-0">
         {activeFile ? (
           <div className="flex-1 flex flex-col min-h-0">
-            <CodeEditor
-              key={activeFile.id}
-              file={activeFile}
-              readOnly={isReadOnly}
-              userId={userId}
-              sessionId={currentSession?.sessionId}
-              cursors={cursors.filter(c => c.userId !== userId).map(c => {
-                 const p = participants.find(part => String(getUserId(part)) === String(c.userId));
-                 const pm = projectMembers.find(m => String(getUserId(m)) === String(c.userId));
-                 return {
-                   ...c,
-                   color: c.color || p?.color || '#06B6D4',
-                   username: pm?.username || getUserName(pm) || p?.username || c.username || `User ${c.userId}`
-                 };
-              })}
-              remoteCode={remoteCode}
-              onLocalActivity={() => markTyping(userId)}
-              onRunCode={handleRunCode}
-              isRunning={isRunning}
-            />
+            {diffMode ? (
+              <div className="flex-1 flex flex-col">
+                <div className="h-10 bg-[#1B1A55]/40 border-b border-[#535C91]/30 flex items-center justify-between px-4">
+                  <span className="text-xs font-mono text-[#9290C3] tracking-wide">
+                    Comparing: Local Changes vs {selectedVersion?.commitMessage || "Previous Version"}
+                  </span>
+                  <button 
+                    onClick={() => setDiffMode(false)} 
+                    className="text-xs bg-[#535C91]/50 px-3 py-1 text-white rounded hover:bg-[#535C91] transition-colors font-bold"
+                  >
+                    Back to Editor
+                  </button>
+                </div>
+                <DiffEditor
+                  height="100%"
+                  theme="vs-dark"
+                  original={selectedVersion?.content || ''}
+                  modified={activeFile.content || ''}
+                  language={activeFile.name.split('.').pop() === 'py' ? 'python' : activeFile.name.split('.').pop() === 'js' ? 'javascript' : activeFile.name.split('.').pop() === 'java' ? 'java' : 'plaintext'}
+                  options={{ 
+                    readOnly: true,
+                    fontSize: 14,
+                    fontFamily: "'Fira Code', 'Cascadia Code', monospace",
+                    minimap: { enabled: true },
+                    padding: { top: 20 },
+                    automaticLayout: true
+                  }}
+                />
+              </div>
+            ) : (
+              <CodeEditor
+                key={activeFile.id}
+                file={activeFile}
+                readOnly={isReadOnly}
+                userId={userId}
+                sessionId={currentSession?.sessionId}
+                cursors={cursors.filter(c => c.userId !== userId).map(c => {
+                   const p = participants.find(part => String(getUserId(part)) === String(c.userId));
+                   const pm = projectMembers.find(m => String(getUserId(m)) === String(c.userId));
+                   return {
+                     ...c,
+                     color: c.color || p?.color || '#06B6D4',
+                     username: pm?.username || getUserName(pm) || p?.username || c.username || `User ${c.userId}`
+                   };
+                })}
+                remoteCode={remoteCode}
+                onLocalActivity={() => markTyping(userId)}
+                onRunCode={handleRunCode}
+                isRunning={isRunning}
+              />
+            )}
             <Terminal
               key={currentJobId || "terminal"}
               isOpen={showTerminal}
