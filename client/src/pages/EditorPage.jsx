@@ -10,6 +10,8 @@ import CodeEditor from "../components/editor/CodeEditor";
 import GlobalSearch from "../components/editor/GlobalSearch";
 import { Files, Search, ArrowLeft, Users } from "lucide-react";
 import CollabPanel from "../components/editor/CollabPanel";
+import { submitJob, getJobStatus } from "../api/services/executionService";
+import Terminal from "../components/editor/Terminal";
 
 const findNodeById = (nodes, targetId) => {
   if (!Array.isArray(nodes) || !targetId) return null;
@@ -73,6 +75,12 @@ export default function EditorPage() {
   const [hasRequested, setHasRequested] = useState(false);
   const [projectMembers, setProjectMembers] = useState([]);
   const sessionGuardRef = useRef(null);
+
+  const [isRunning, setIsRunning] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState([]);
+  const [executionMetadata, setExecutionMetadata] = useState(null);
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState(null);
 
   const storedUser = useMemo(
     () => JSON.parse(localStorage.getItem("user")),
@@ -184,6 +192,80 @@ export default function EditorPage() {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  const handleRunCode = async (code, language) => {
+    if (!activeFile?.id || !projectId) return;
+    const numericFileId = activeFile.id.split('-')[1];
+
+    requestAnimationFrame(() => {
+      setIsRunning(true);
+      setShowTerminal(true);
+      setTerminalOutput([{ type: 'system', text: `[Queued] Starting execution for ${activeFile.name}...` }]);
+      setExecutionMetadata(null);
+      setCurrentJobId(Date.now().toString());
+
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    });
+
+    try {
+      const res = await submitJob({
+        projectId,
+        fileId: numericFileId,
+        language,
+        sourceCode: code,
+        stdin: ""
+      });
+      
+      const jobId = res.data.jobId || res.data.id;
+      setCurrentJobId(jobId);
+      pollJobStatus(jobId);
+    } catch (err) {
+      setIsRunning(false);
+      setTerminalOutput(prev => [...prev, { type: 'stderr', text: 'Error submitting job: ' + (err.response?.data?.message || err.message) }]);
+    }
+  };
+
+  const pollJobStatus = async (jobId) => {
+    const pollTimer = setInterval(async () => {
+      try {
+        const res = await getJobStatus(jobId);
+        const { status, stdout, stderr, exitCode, executionTimeMs, memoryUsed } = res.data;
+        
+        if (status === 'RUNNING') {
+          setTerminalOutput(prev => {
+            if (!prev.some(msg => msg.text.includes('[Running] Executing code...'))) {
+              return [...prev, { type: 'system', text: `[Running] Executing code...` }];
+            }
+            return prev;
+          });
+        }
+
+        if (status === 'COMPLETED' || status === 'FAILED') {
+          clearInterval(pollTimer);
+          setIsRunning(false);
+          
+          const newOutput = [];
+          if (stdout) newOutput.push({ type: 'stdout', text: stdout });
+          if (stderr) newOutput.push({ type: 'stderr', text: stderr });
+          
+          if (status === 'FAILED') {
+            newOutput.push({ type: 'stderr', text: `[Process exited with code ${exitCode}]` });
+          } else {
+            newOutput.push({ type: 'success', text: `[Finished in ${executionTimeMs}ms]` });
+          }
+          
+          setTerminalOutput(prev => [...prev, ...newOutput]);
+          setExecutionMetadata({ timeMs: executionTimeMs, memoryUsed });
+        }
+      } catch (err) {
+        clearInterval(pollTimer);
+        setIsRunning(false);
+        setTerminalOutput(prev => [...prev, { type: 'stderr', text: 'Error polling status: ' + (err.message) }]);
+      }
+    }, 500);
+  };
 
   useEffect(() => {
     const numericFileId = activeFile?.id?.split('-')[1];
@@ -451,24 +533,39 @@ export default function EditorPage() {
       {/* RIGHT: Monaco Editor */}
       <main className="flex-1 flex flex-col min-w-0">
         {activeFile ? (
-          <CodeEditor
-            key={activeFile.id}
-            file={activeFile}
-            readOnly={isReadOnly}
-            userId={userId}
-            sessionId={currentSession?.sessionId}
-            cursors={cursors.filter(c => c.userId !== userId).map(c => {
-               const p = participants.find(part => String(getUserId(part)) === String(c.userId));
-               const pm = projectMembers.find(m => String(getUserId(m)) === String(c.userId));
-               return {
-                 ...c,
-                 color: c.color || p?.color || '#06B6D4',
-                 username: pm?.username || getUserName(pm) || p?.username || c.username || `User ${c.userId}`
-               };
-            })}
-            remoteCode={remoteCode}
-            onLocalActivity={() => markTyping(userId)}
-          />
+          <div className="flex-1 flex flex-col min-h-0">
+            <CodeEditor
+              key={activeFile.id}
+              file={activeFile}
+              readOnly={isReadOnly}
+              userId={userId}
+              sessionId={currentSession?.sessionId}
+              cursors={cursors.filter(c => c.userId !== userId).map(c => {
+                 const p = participants.find(part => String(getUserId(part)) === String(c.userId));
+                 const pm = projectMembers.find(m => String(getUserId(m)) === String(c.userId));
+                 return {
+                   ...c,
+                   color: c.color || p?.color || '#06B6D4',
+                   username: pm?.username || getUserName(pm) || p?.username || c.username || `User ${c.userId}`
+                 };
+              })}
+              remoteCode={remoteCode}
+              onLocalActivity={() => markTyping(userId)}
+              onRunCode={handleRunCode}
+              isRunning={isRunning}
+            />
+            <Terminal
+              key={currentJobId || "terminal"}
+              isOpen={showTerminal}
+              output={terminalOutput}
+              isRunning={isRunning}
+              onClose={() => setShowTerminal(false)}
+              onClear={() => setTerminalOutput([])}
+              metadata={executionMetadata}
+              language={activeFile.name.split('.').pop()}
+              filename={activeFile.name}
+            />
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 space-y-4">
             <div className="w-16 h-16 rounded-full bg-[#1B1A55]/30 flex items-center justify-center border border-[#535C91]/20">

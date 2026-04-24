@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { updateFileContent } from '../../api/services/fileService';
 import { updateCursorPosition } from '../../api/services/collabService';
 import { sendCodeChange } from '../../api/webSocket';
-import { CloudCheck, Loader2 } from 'lucide-react';
+import { CloudCheck, Loader2, Play } from 'lucide-react';
 
 // No external cursor wrapper, using CSS after pseudo-element with monaco widget
 
@@ -15,6 +15,8 @@ export default function CodeEditor({
   cursors,
   remoteCode,
   onLocalActivity,
+  onRunCode,
+  isRunning
 }) {
   const [code, setCode] = useState(file.content || '');
   const [saving, setSaving] = useState(false);
@@ -103,6 +105,16 @@ export default function CodeEditor({
     }
   }, [file.id, remoteCode, userId]);
 
+  const handleRun = () => {
+    if (!onRunCode) return;
+    if (editorRef.current) {
+      const currentCode = editorRef.current.getValue();
+      onRunCode(currentCode, getLanguage(file.name));
+    } else {
+      onRunCode(code, getLanguage(file.name));
+    }
+  };
+
   const handleEditorChange = (value) => {
     if (readOnly) return;
     if (isRemoteUpdateRef.current) return;
@@ -174,6 +186,15 @@ export default function CodeEditor({
           <span className="text-[10px] text-gray-500 uppercase font-bold">
             {getLanguage(file.name)}
           </span>
+          <div className="h-4 w-px bg-[#535C91]/40 mx-2" />
+          <button
+            onClick={handleRun}
+            disabled={isRunning}
+            className="flex items-center gap-1.5 bg-green-600/20 text-green-400 px-3 py-1 rounded text-xs font-bold hover:bg-green-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+            <span>RUN</span>
+          </button>
         </div>
         
         <div className="flex items-center gap-2">
@@ -217,6 +238,7 @@ export default function CodeEditor({
             },
             lineNumbers: 'on',
             renderLineHighlight: 'all',
+            automaticLayout: true,
           }}
         />
       </div>
