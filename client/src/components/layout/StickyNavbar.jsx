@@ -35,6 +35,7 @@ export default function StickyNavbar() {
                     {token ? (
                         <>
                             <NavLink to="/dashboard" className="text-sm text-gray-300 hover:text-white">Dashboard</NavLink>
+                            <NavLink to="/subscribe" className="text-sm text-[#9290C3] font-semibold hover:text-white">Subscription</NavLink>
                             <NotificationCenter />
                             <button onClick={handleLogout} className="text-sm font-medium text-red-400 hover:text-red-300">Logout</button>
                         </>

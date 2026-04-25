@@ -15,7 +15,9 @@ import ProjectDashboard from "./features/projects/ProjectDashboard";
 import OAuthCallback from "./features/auth/OAuthCallback";
 import ProfileSettings from "./features/profile/ProfileSettings";
 import EditorPage from "./pages/EditorPage"; // New Editor Page
+import Subscribe from "./pages/Subscribe";
 import { NotificationProvider } from "./context/NotificationContext";
+import SubscriptionGuard from "./components/SubscriptionGuard";
 
 function AppRoutes() {
   const location = useLocation();
@@ -45,12 +47,24 @@ function AppRoutes() {
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/oauth-success" element={<OAuthCallback />} />
 
+            {/* NEW: Subscribe Route */}
+            <Route
+              path="/subscribe"
+              element={
+                <ProtectedRoute>
+                  <Subscribe />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Private Dashboard Route */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <ProjectDashboard />
+                  <SubscriptionGuard>
+                    <ProjectDashboard />
+                  </SubscriptionGuard>
                 </ProtectedRoute>
               }
             />
@@ -70,7 +84,9 @@ function AppRoutes() {
               path="/editor/:projectId"
               element={
                 <ProtectedRoute>
-                  <EditorPage />
+                  <SubscriptionGuard>
+                    <EditorPage />
+                  </SubscriptionGuard>
                 </ProtectedRoute>
               }
             />
