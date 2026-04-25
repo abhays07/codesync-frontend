@@ -13,9 +13,10 @@ export default function OAuthCallback() {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify({ 
                     userId: data.userId, 
-                    username: data.username 
+                    username: data.username,
+                    email: data.email
                 }));
-                toast.success("Welcome back via Google!");
+                toast.success(`Welcome back, ${data.username}!`);
                 navigate('/dashboard');
             } catch (err) {
                 toast.error("Social login handshake failed.");

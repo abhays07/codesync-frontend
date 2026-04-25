@@ -14,8 +14,10 @@ import { submitJob, getJobStatus } from "../api/services/executionService";
 import Terminal from "../components/editor/Terminal";
 import VersionSidebar from "../components/editor/VersionSidebar";
 import DiscussionSidebar from "../components/editor/DiscussionSidebar";
+import NotificationCenter from "../components/layout/NotificationCenter";
 import { DiffEditor } from '@monaco-editor/react';
 import { getCommentsByFile, addComment, deleteComment } from '../api/services/commentService';
+import { sendNotification } from '../api/services/notificationService';
 
 const findNodeById = (nodes, targetId) => {
   if (!Array.isArray(nodes) || !targetId) return null;
@@ -101,6 +103,7 @@ export default function EditorPage() {
   const currentUser = useMemo(() => ({
     userId,
     username: storedUser?.username || storedUser?.name || `User ${userId}`,
+    email: storedUser?.email,
   }), [storedUser, userId]);
 
   const isOwner = useMemo(() => {
@@ -172,6 +175,21 @@ export default function EditorPage() {
       if (!numericFileId) return;
       await addComment({ ...data, fileId: numericFileId, userId, username: currentUser.username });
       fetchComments(numericFileId);
+
+      // Notify project members
+      for (const member of projectMembers) {
+        const memberId = member.userId || member.id;
+        if (String(memberId) !== String(userId)) {
+          await sendNotification({
+            recipientId: memberId,
+            senderId: userId,
+            senderName: currentUser.username,
+            type: 'COMMENT',
+            message: `${currentUser.username} commented on ${activeFile.name}`,
+            relatedId: String(numericFileId)
+          }, member.email ? [member.email] : []).catch(() => {});
+        }
+      }
     } catch (err) {
       toast.error("Failed to save comment");
     }
@@ -223,6 +241,19 @@ export default function EditorPage() {
       await requestCollaborationAccess(projectId, userId, currentUser.username);
       toast.success("Collaboration request sent!");
       setHasRequested(true);
+
+      const ownerId = project.ownerId || project.owner_id || project.owner?.id || project.owner?.userId;
+      if (ownerId && String(ownerId) !== String(userId)) {
+        await sendNotification({
+          recipientId: ownerId,
+          senderId: userId,
+          senderName: currentUser.username,
+          type: 'COLLAB_REQUEST',
+          message: `User ${currentUser.username}${currentUser.email ? ` (${currentUser.email})` : ''} has requested to join your project: ${project.name}.`,
+          relatedId: String(projectId),
+          senderEmail: currentUser.email || storedUser?.email
+        }, project.owner?.email ? [project.owner.email] : []).catch(() => {});
+      }
     } catch (error) {
       console.error("Failed to send collaboration request", error);
       toast.error("Failed to send request. You may have already requested access.");
@@ -534,13 +565,16 @@ export default function EditorPage() {
             <MessageSquare size={20} strokeWidth={1.5} />
           </button>
         </div>
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="p-2 rounded-xl transition-all text-gray-400 hover:text-white hover:bg-[#535C91]/30"
-          title="Back to Dashboard"
-        >
-          <ArrowLeft size={20} strokeWidth={1.5} />
-        </button>
+        <div className="flex flex-col items-center gap-4">
+          <NotificationCenter placement="right-end" />
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="p-2 rounded-xl transition-all text-gray-400 hover:text-white hover:bg-[#535C91]/30"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft size={20} strokeWidth={1.5} />
+          </button>
+        </div>
       </div>
 
       {/* SECONDARY SIDEBAR */}
@@ -620,6 +654,14 @@ export default function EditorPage() {
 
       {/* RIGHT: Monaco Editor */}
       <main className="flex-1 flex flex-col min-w-0">
+        {project && (
+          <div className="h-14 bg-[#1B1A55]/40 border-b border-[#535C91]/30 flex items-center px-6 shrink-0 z-10 shadow-sm">
+            <h1 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+              {project.name}
+              {isReadOnly && !isOwner && <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30 uppercase font-bold tracking-wider">Read-Only</span>}
+            </h1>
+          </div>
+        )}
         {activeFile ? (
           <div className="flex-1 flex flex-col min-h-0">
             {diffMode ? (

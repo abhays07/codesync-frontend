@@ -1,5 +1,5 @@
 import SockJS from 'sockjs-client';
-import Stomp from 'stompjs';
+import { Stomp } from '@stomp/stompjs';
 
 const SOCKET_URL = 'http://localhost:9000/ws-collab';
 
@@ -11,9 +11,8 @@ const ensureConnected = () => {
     if (stompClient?.connected) return Promise.resolve();
     if (connectPromise) return connectPromise;
 
-    const socket = new SockJS(SOCKET_URL);
-    stompClient = Stomp.over(socket);
-    stompClient.debug = null;
+    stompClient = Stomp.over(() => new SockJS(SOCKET_URL));
+    stompClient.debug = () => {};
 
     connectPromise = new Promise((resolve, reject) => {
         stompClient.connect(

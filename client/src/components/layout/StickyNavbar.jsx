@@ -8,6 +8,8 @@ const links = [
   { to: '/register', label: 'Register', icon: UserPlus },
 ];
 
+import NotificationCenter from './NotificationCenter';
+
 export default function StickyNavbar() {
     const token = localStorage.getItem('token');
     const navigate = useNavigate();
@@ -33,6 +35,7 @@ export default function StickyNavbar() {
                     {token ? (
                         <>
                             <NavLink to="/dashboard" className="text-sm text-gray-300 hover:text-white">Dashboard</NavLink>
+                            <NotificationCenter />
                             <button onClick={handleLogout} className="text-sm font-medium text-red-400 hover:text-red-300">Logout</button>
                         </>
                     ) : (

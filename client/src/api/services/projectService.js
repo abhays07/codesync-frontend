@@ -59,3 +59,6 @@ export const approveCollaborator = (projectId, userId) => api.post(`/projects/${
 
 // Fetches users who currently have project access
 export const getProjectMembers = (projectId) => api.get(`/projects/${projectId}/members`);
+
+// Removes a collaborator from a project
+export const removeProjectMember = (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`);

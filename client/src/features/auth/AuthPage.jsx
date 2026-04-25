@@ -40,9 +40,18 @@ export default function AuthPage({ mode = 'login' }) {
         passwordHash: loginForm.password, // Mapped to backend entity field
       });
 
-      const { token, userId, username } = responseData;
+      const { token, userId, username, email } = responseData;
+      let userEmail = email;
+      if (!userEmail && token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          userEmail = payload.email || payload.sub || undefined; 
+        } catch (e) {
+          console.error("Could not parse JWT for email", e);
+        }
+      }
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ userId, username }));
+      localStorage.setItem('user', JSON.stringify({ userId, username, email: userEmail }));
 
       toast.success(`Welcome, ${username}!`, { id: loadingId });
       navigate('/dashboard');

@@ -15,6 +15,7 @@ import ProjectDashboard from "./features/projects/ProjectDashboard";
 import OAuthCallback from "./features/auth/OAuthCallback";
 import ProfileSettings from "./features/profile/ProfileSettings";
 import EditorPage from "./pages/EditorPage"; // New Editor Page
+import { NotificationProvider } from "./context/NotificationContext";
 
 function AppRoutes() {
   const location = useLocation();
@@ -98,7 +99,9 @@ export default function App() {
         }}
         containerStyle={{ zIndex: 100 }} // Ensure it stays above everything
       />
-      <AppRoutes />
+      <NotificationProvider>
+        <AppRoutes />
+      </NotificationProvider>
     </BrowserRouter>
   );
 }

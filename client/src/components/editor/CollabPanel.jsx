@@ -4,7 +4,9 @@ import {
   approveCollaborator,
   getPendingRequests,
   getProjectMembers,
+  removeProjectMember,
 } from '../../api/services/projectService';
+import { UserMinus } from 'lucide-react';
 
 const getUserId = (user) => user?.userId || user?.id || user?.user?.userId || user?.user?.id;
 
@@ -173,6 +175,18 @@ export default function CollabPanel({
     }
   };
 
+  const handleRemoveMember = async (removeUserId) => {
+    if (!window.confirm('Are you sure you want to remove this member?')) return;
+    try {
+      await removeProjectMember(projectId, removeUserId);
+      toast.success('Member removed');
+      await fetchAccessUsers();
+    } catch (err) {
+      console.error('Failed to remove member', err);
+      toast.error('Failed to remove member');
+    }
+  };
+
   return (
     <div className="p-4 space-y-5 overflow-y-auto">
       {isOwner && (
@@ -256,6 +270,7 @@ export default function CollabPanel({
           <div className="flex flex-col gap-2">
             {[...liveUsers, ...offlineUsers].map((user) => {
               const isOnline = onlineIds.has(String(user.userId));
+              const isCurrentUser = String(user.userId) === String(currentUser?.userId);
 
               return (
                 <div
@@ -266,7 +281,18 @@ export default function CollabPanel({
                     <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isOnline ? 'bg-green-400' : 'bg-gray-600'}`} />
                     <span className="text-xs text-gray-200 truncate">{user.username}</span>
                   </div>
-                  <span className="text-[10px] text-gray-500 uppercase shrink-0 ml-2">{user.role}</span>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="text-[10px] text-gray-500 uppercase">{user.role}</span>
+                    {isOwner && !isCurrentUser && (
+                      <button
+                        onClick={() => handleRemoveMember(user.userId)}
+                        className="text-gray-500 hover:text-red-400 p-1 rounded transition-colors"
+                        title="Remove Member"
+                      >
+                        <UserMinus size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
