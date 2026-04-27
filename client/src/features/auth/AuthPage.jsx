@@ -13,7 +13,7 @@ export default function AuthPage({ mode = 'login' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const AUTH_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:8081';
+  const AUTH_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://65.1.129.94.nip.io:9000/api/v1/auth';
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
