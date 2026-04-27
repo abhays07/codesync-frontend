@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const baseURL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://65.1.129.94:9000/api/v1";
+  import.meta.env.VITE_API_BASE_URL ?? "http://65.1.129.94.nip.io:9000/api/v1";
 
 const api = axios.create({
   baseURL,

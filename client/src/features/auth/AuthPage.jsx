@@ -28,8 +28,9 @@ export default function AuthPage({ mode = 'login' }) {
   const isLogin = mode === 'login';
   const title = isLogin ? 'Welcome Back' : 'Create Your Account';
   const handleOAuthLogin = (provider) => {
-    // Uses AUTH_URL which has a hardcoded AWS fallback for Netlify portability
-    window.location.href = `${AUTH_URL}/oauth2/authorization/${provider}`;
+    // FORCE absolute URL to ensure we leave the Netlify domain and hit the AWS Gateway directly
+    const GATEWAY_URL = "http://65.1.129.94.nip.io:9000";
+    window.location.href = `${GATEWAY_URL}/api/v1/auth/oauth2/authorization/${provider}`;
   };
   const cardKey = useMemo(() => `${location.pathname}-${mode}`, [location.pathname, mode]);
 
