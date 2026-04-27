@@ -27,6 +27,10 @@ export default function AuthPage({ mode = 'login' }) {
 
   const isLogin = mode === 'login';
   const title = isLogin ? 'Welcome Back' : 'Create Your Account';
+  const handleOAuthLogin = (provider) => {
+    // Points directly to the AWS Gateway to trigger the OAuth flow
+    window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/oauth2/authorization/${provider}`;
+  };
   const cardKey = useMemo(() => `${location.pathname}-${mode}`, [location.pathname, mode]);
 
   const onLoginFieldChange = (e) => setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -177,8 +181,8 @@ export default function AuthPage({ mode = 'login' }) {
                 <span className="absolute bg-[#1B1A55] px-4 text-xs text-gray-500 uppercase tracking-widest">Or Continue With</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <SocialBtn icon={<GoogleIcon />} label="Google" onClick={() => window.location.href = `${AUTH_URL}/oauth2/authorization/google`} />
-                <SocialBtn icon={<GitHubIcon />} label="GitHub" onClick={() => window.location.href = `${AUTH_URL}/oauth2/authorization/github`} />
+                <SocialBtn icon={<GoogleIcon />} label="Google" onClick={() => handleOAuthLogin('google')} />
+                <SocialBtn icon={<GitHubIcon />} label="GitHub" onClick={() => handleOAuthLogin('github')} />
               </div>
             </div>
           </motion.section>
