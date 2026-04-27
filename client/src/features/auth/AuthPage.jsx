@@ -28,8 +28,8 @@ export default function AuthPage({ mode = 'login' }) {
   const isLogin = mode === 'login';
   const title = isLogin ? 'Welcome Back' : 'Create Your Account';
   const handleOAuthLogin = (provider) => {
-    // Points directly to the AWS Gateway to trigger the OAuth flow
-    window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/oauth2/authorization/${provider}`;
+    // Uses AUTH_URL which has a hardcoded AWS fallback for Netlify portability
+    window.location.href = `${AUTH_URL}/oauth2/authorization/${provider}`;
   };
   const cardKey = useMemo(() => `${location.pathname}-${mode}`, [location.pathname, mode]);
 
