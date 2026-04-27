@@ -18,8 +18,21 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error)
 );
+
+// Response Interceptor: Globally catch and format backend error messages
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data) {
+      const backendMsg = error.response.data.message || error.response.data.error;
+      if (typeof backendMsg === 'string' && backendMsg.trim() !== '') {
+        error.message = backendMsg;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

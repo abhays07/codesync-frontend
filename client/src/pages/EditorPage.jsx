@@ -8,7 +8,7 @@ import { subscribeToSession, disconnectWebSocket } from "../api/webSocket";
 import FileTree from "../components/editor/FileTree";
 import CodeEditor from "../components/editor/CodeEditor";
 import GlobalSearch from "../components/editor/GlobalSearch";
-import { Files, Search, ArrowLeft, Users, History, MessageSquare } from "lucide-react";
+import { Files, Search, ArrowLeft, Users, History, MessageSquare, Menu, X } from "lucide-react";
 import CollabPanel from "../components/editor/CollabPanel";
 import { submitJob, getJobStatus } from "../api/services/executionService";
 import Terminal from "../components/editor/Terminal";
@@ -80,6 +80,7 @@ export default function EditorPage() {
   const [isReadOnly, setIsReadOnly] = useState(true);
   const [hasRequested, setHasRequested] = useState(false);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const sessionGuardRef = useRef(null);
 
   const [isRunning, setIsRunning] = useState(false);
@@ -149,11 +150,18 @@ export default function EditorPage() {
       if (numericFileId) {
         fetchComments(numericFileId);
       }
+      
+      if (window.innerWidth < 768) {
+        setIsMobileMenuOpen(false);
+      }
     } catch (err) {
       console.error("Failed to refresh project tree", err);
       // Fallback: open whatever we have locally.
       setActiveFile(fileNode);
       setDiffMode(false);
+      if (window.innerWidth < 768) {
+        setIsMobileMenuOpen(false);
+      }
     }
   };
 
@@ -176,8 +184,19 @@ export default function EditorPage() {
       await addComment({ ...data, fileId: numericFileId, userId, username: currentUser.username });
       fetchComments(numericFileId);
 
-      // Notify project members
-      for (const member of projectMembers) {
+      // Guarantee owner is included in notifications even if not in members list
+      const usersToNotify = [...projectMembers];
+      const ownerId = project?.ownerId || project?.owner_id || project?.owner?.id || project?.owner?.userId;
+      
+      if (ownerId && !usersToNotify.find(m => String(m.userId || m.id) === String(ownerId))) {
+        usersToNotify.push({
+          userId: ownerId,
+          email: project?.owner?.email || project?.ownerEmail
+        });
+      }
+
+      // Notify project members + owner
+      for (const member of usersToNotify) {
         const memberId = member.userId || member.id;
         if (String(memberId) !== String(userId)) {
           await sendNotification({
@@ -185,13 +204,14 @@ export default function EditorPage() {
             senderId: userId,
             senderName: currentUser.username,
             type: 'COMMENT',
-            message: `${currentUser.username} commented on ${activeFile.name}`,
-            relatedId: String(numericFileId)
+            message: `${currentUser.username} commented on ${activeFile.name} in project ${project?.name}`,
+            relatedId: String(numericFileId),
+            projectName: project?.name
           }, member.email ? [member.email] : []).catch(() => {});
         }
       }
     } catch (err) {
-      toast.error("Failed to save comment");
+      toast.error(err.message || "Failed to save comment");
     }
   };
 
@@ -203,7 +223,7 @@ export default function EditorPage() {
       await deleteComment(id);
       fetchComments(numericFileId);
     } catch (err) {
-      toast.error("Failed to delete comment");
+      toast.error(err.message || "Failed to delete comment");
     }
   };
 
@@ -222,7 +242,9 @@ export default function EditorPage() {
         setProjectMembers(membersRes.data || []);
         
         // Logic: if user is NOT owner AND checkEditAccess returns false, then readOnly is true
-        setIsReadOnly(!accessRes.data);
+        // AND enforce read-only if not subscribed
+        const isSubscribed = storedUser?.isSubscribed;
+        setIsReadOnly(!isSubscribed || !accessRes.data);
       } catch (err) {
         console.error("Failed to load environment", err);
         toast.error("Failed to load environment");
@@ -236,6 +258,13 @@ export default function EditorPage() {
   }, [projectId, userId]);
 
   const handleRequestAccess = async () => {
+    const isSubscribed = storedUser?.isSubscribed;
+    if (!isSubscribed) {
+      toast.error("Pro subscription required to collaborate.");
+      navigate("/profile", { state: { proRequired: true } });
+      return;
+    }
+
     try {
       // Pass userId AND the formatted username from currentUser
       await requestCollaborationAccess(projectId, userId, currentUser.username);
@@ -251,12 +280,13 @@ export default function EditorPage() {
           type: 'COLLAB_REQUEST',
           message: `User ${currentUser.username}${currentUser.email ? ` (${currentUser.email})` : ''} has requested to join your project: ${project.name}.`,
           relatedId: String(projectId),
-          senderEmail: currentUser.email || storedUser?.email
+          senderEmail: currentUser.email || storedUser?.email,
+          projectName: project.name
         }, project.owner?.email ? [project.owner.email] : []).catch(() => {});
       }
     } catch (error) {
       console.error("Failed to send collaboration request", error);
-      toast.error("Failed to send request. You may have already requested access.");
+      toast.error(error.message || "Failed to send request. You may have already requested access.");
     }
   };
 
@@ -525,60 +555,72 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#070F2B] overflow-hidden">
-      {/* LEFT: Activity Bar */}
-      <div className="w-12 border-r border-[#535C91]/30 bg-[#1B1A55]/40 flex flex-col items-center justify-between py-4 gap-4 z-10 shrink-0">
-        <div className="flex flex-col items-center gap-4">
-          <button 
-            onClick={() => setActiveTab('explore')}
-            className={`p-2 rounded-xl transition-all ${activeTab === 'explore' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
-            title="Explorer"
-          >
-            <Files size={20} strokeWidth={1.5} />
-          </button>
-          <button 
-            onClick={() => setActiveTab('search')}
-            className={`p-2 rounded-xl transition-all ${activeTab === 'search' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
-            title="Search"
-          >
-            <Search size={20} strokeWidth={1.5} />
-          </button>
-          <button 
-            onClick={() => setActiveTab('collab')}
-            className={`p-2 rounded-xl transition-all ${activeTab === 'collab' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
-            title="Collaboration"
-          >
-            <Users size={20} strokeWidth={1.5} />
-          </button>
-          <button 
-            onClick={() => setActiveTab('version')}
-            className={`p-2 rounded-xl transition-all ${activeTab === 'version' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
-            title="Version Control"
-          >
-            <History size={20} strokeWidth={1.5} />
-          </button>
-          <button 
-            onClick={() => setActiveTab('discuss')}
-            className={`p-2 rounded-xl transition-all ${activeTab === 'discuss' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
-            title="Discussions"
-          >
-            <MessageSquare size={20} strokeWidth={1.5} />
-          </button>
-        </div>
-        <div className="flex flex-col items-center gap-4">
-          <NotificationCenter placement="right-end" />
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="p-2 rounded-xl transition-all text-gray-400 hover:text-white hover:bg-[#535C91]/30"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft size={20} strokeWidth={1.5} />
-          </button>
-        </div>
-      </div>
+    <div className="flex h-screen bg-[#070F2B] overflow-hidden relative">
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
 
-      {/* SECONDARY SIDEBAR */}
-      <aside className="w-64 border-r border-[#535C91]/30 bg-[#1B1A55]/20 backdrop-blur-xl flex flex-col shrink-0">
+      {/* SIDEBARS CONTAINER */}
+      <div 
+        className={`fixed inset-y-0 left-0 z-50 flex h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl md:shadow-none`}
+      >
+        {/* LEFT: Activity Bar */}
+        <div className="w-12 border-r border-[#535C91]/30 bg-[#1B1A55]/95 md:bg-[#1B1A55]/40 flex flex-col items-center justify-between py-4 gap-4 shrink-0">
+          <div className="flex flex-col items-center gap-4">
+            <button 
+              onClick={() => setActiveTab('explore')}
+              className={`p-2 rounded-xl transition-all ${activeTab === 'explore' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+              title="Explorer"
+            >
+              <Files size={20} strokeWidth={1.5} />
+            </button>
+            <button 
+              onClick={() => setActiveTab('search')}
+              className={`p-2 rounded-xl transition-all ${activeTab === 'search' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+              title="Search"
+            >
+              <Search size={20} strokeWidth={1.5} />
+            </button>
+            <button 
+              onClick={() => setActiveTab('collab')}
+              className={`p-2 rounded-xl transition-all ${activeTab === 'collab' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+              title="Collaboration"
+            >
+              <Users size={20} strokeWidth={1.5} />
+            </button>
+            <button 
+              onClick={() => setActiveTab('version')}
+              className={`p-2 rounded-xl transition-all ${activeTab === 'version' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+              title="Version Control"
+            >
+              <History size={20} strokeWidth={1.5} />
+            </button>
+            <button 
+              onClick={() => setActiveTab('discuss')}
+              className={`p-2 rounded-xl transition-all ${activeTab === 'discuss' ? 'bg-[#535C91]/50 text-white' : 'text-gray-400 hover:text-white hover:bg-[#535C91]/30'}`}
+              title="Discussions"
+            >
+              <MessageSquare size={20} strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="flex flex-col items-center gap-4">
+            <NotificationCenter placement="right-end" />
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="p-2 rounded-xl transition-all text-gray-400 hover:text-white hover:bg-[#535C91]/30"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={20} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+
+        {/* SECONDARY SIDEBAR */}
+        <aside className="w-64 border-r border-[#535C91]/30 bg-[#1B1A55]/95 md:bg-[#1B1A55]/20 backdrop-blur-xl flex flex-col shrink-0">
         {activeTab === 'explore' ? (
           <>
             <div className="p-4 border-b border-[#535C91]/30 flex-shrink-0">
@@ -634,6 +676,27 @@ export default function EditorPage() {
              username={currentUser.username}
              onVersionSelect={handleVersionSelect}
              onRestore={handleRestore}
+             onNotifyCommit={async (commitMsg) => {
+               const usersToNotify = [...projectMembers];
+               const ownerId = project?.ownerId || project?.owner_id || project?.owner?.id || project?.owner?.userId;
+               if (ownerId && !usersToNotify.find(m => String(m.userId || m.id) === String(ownerId))) {
+                 usersToNotify.push({ userId: ownerId, email: project?.owner?.email || project?.ownerEmail });
+               }
+               for (const member of usersToNotify) {
+                 const memberId = member.userId || member.id;
+                 if (String(memberId) !== String(userId)) {
+                   await sendNotification({
+                     recipientId: memberId,
+                     senderId: userId,
+                     senderName: currentUser.username,
+                     type: 'COMMIT',
+                     message: `${currentUser.username} committed changes to ${activeFile.name} in project ${project?.name}: "${commitMsg}"`,
+                     relatedId: String(activeFile.id.split('-')[1]),
+                     projectName: project?.name
+                   }, member.email ? [member.email] : []).catch(() => {});
+                 }
+               }
+             }}
           />
         ) : activeTab === 'discuss' ? (
           <DiscussionSidebar
@@ -648,15 +711,23 @@ export default function EditorPage() {
             currentUser={currentUser}
             activeTypers={activeTypers}
             sessionId={currentSession?.sessionId}
+            projectName={project?.name}
           />
         )}
       </aside>
+      </div>
 
       {/* RIGHT: Monaco Editor */}
       <main className="flex-1 flex flex-col min-w-0">
         {project && (
-          <div className="h-14 bg-[#1B1A55]/40 border-b border-[#535C91]/30 flex items-center px-6 shrink-0 z-10 shadow-sm">
-            <h1 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+          <div className="h-14 bg-[#1B1A55]/40 border-b border-[#535C91]/30 flex items-center px-4 md:px-6 shrink-0 z-10 shadow-sm gap-3">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 text-gray-400 hover:text-white rounded-lg hover:bg-[#535C91]/30 transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+            <h1 className="text-lg md:text-xl font-bold text-white tracking-wide flex items-center gap-2 truncate">
               {project.name}
               {isReadOnly && !isOwner && <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30 uppercase font-bold tracking-wider">Read-Only</span>}
             </h1>

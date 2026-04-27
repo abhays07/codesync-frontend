@@ -1,51 +1,103 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, Trash2, Save, ArrowLeft, Camera, Info, AlertTriangle } from 'lucide-react';
+import { User, Lock, Trash2, Save, ArrowLeft, Camera, Info, AlertTriangle, GitBranch, Briefcase, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { updatePassword, deactivateAccount, updateProfile } from '../../api/services/authService';
+import { sendOtp, resetPassword, deactivateAccount, updateProfile, getProfile } from '../../api/services/authService';
 
 export default function ProfileSettings() {
     const navigate = useNavigate();
     const [isDeactivating, setIsDeactivating] = useState(false);
     const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
     
-    // Profile State for MVP requirements 
+    // OTP Password Reset State
+    const [newPassword, setNewPassword] = useState('');
+    const [otp, setOtp] = useState('');
+    const [isOtpSent, setIsOtpSent] = useState(false);
+    const [isSendingOtp, setIsSendingOtp] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+
+    // Profile State
     const [profile, setProfile] = useState({
         fullName: '',
         username: '',
         avatarUrl: '',
-        bio: ''
+        bio: '',
+        githubLink: '',
+        linkedinLink: '',
+        twitterLink: ''
     });
 
     const storedUser = useMemo(() => JSON.parse(localStorage.getItem('user')), []);
     const userId = storedUser?.userId;
+    const userEmail = storedUser?.email;
 
-    // Handle Profile Update 
+    useEffect(() => {
+        if (userId) {
+            getProfile(userId).then(data => {
+                setProfile({
+                    fullName: data.fullName || '',
+                    username: data.username || '',
+                    avatarUrl: data.avatarUrl || '',
+                    bio: data.bio || '',
+                    githubLink: data.githubLink || '',
+                    linkedinLink: data.linkedinLink || '',
+                    twitterLink: data.twitterLink || ''
+                });
+            }).catch(err => {
+                console.error("Failed to fetch profile", err);
+            });
+        }
+    }, [userId]);
+
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
         const loadingId = toast.loading("Saving profile...");
         try {
             await updateProfile(userId, profile);
             toast.success("Profile synchronized!", { id: loadingId });
-            // Update local storage if username changed
-            localStorage.setItem('user', JSON.stringify({ ...storedUser, username: profile.username }));
+            localStorage.setItem('user', JSON.stringify({ 
+                ...storedUser, 
+                username: profile.username,
+                avatarUrl: profile.avatarUrl,
+                fullName: profile.fullName
+            }));
         } catch (err) {
-            toast.error("Failed to update profile.", { id: loadingId });
+            toast.error(err.message || "Failed to update profile.", { id: loadingId });
         }
     };
 
-    const handlePasswordChange = async (e) => {
+    const handleSendOtp = async (e) => {
         e.preventDefault();
-        if (newPassword.length < 8) return toast.error("Min 8 characters required");
-        const loadingId = toast.loading("Updating security...");
+        if (newPassword.length < 8) return toast.error("Min 8 characters required for new password");
+        setIsSendingOtp(true);
+        const loadingId = toast.loading("Sending OTP to your email...");
         try {
-            await updatePassword(userId, newPassword);
-            toast.success("Password updated!", { id: loadingId });
-            setNewPassword('');
+            await sendOtp(userEmail);
+            toast.success("OTP sent! Please check your email.", { id: loadingId });
+            setIsOtpSent(true);
         } catch (err) {
-            toast.error("Update failed.", { id: loadingId });
+            toast.error(err.response?.data?.error || "Failed to send OTP.", { id: loadingId });
+        } finally {
+            setIsSendingOtp(false);
+        }
+    };
+
+    const handlePasswordReset = async (e) => {
+        e.preventDefault();
+        if (!otp) return toast.error("Please enter the OTP");
+        setIsResetting(true);
+        const loadingId = toast.loading("Verifying and updating password...");
+        try {
+            await resetPassword(userEmail, otp, newPassword);
+            toast.success("Password updated successfully!", { id: loadingId });
+            setNewPassword('');
+            setOtp('');
+            setIsOtpSent(false);
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Invalid OTP or failed to update.", { id: loadingId });
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -74,7 +126,7 @@ export default function ProfileSettings() {
                     <h1 className="text-3xl font-bold text-white mb-10">Account Settings</h1>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Personal Info Section - MVP Requirement  */}
+                        {/* Personal Info Section */}
                         <div className="lg:col-span-2 space-y-8">
                             <section className="bg-[#1B1A55]/40 border border-[#535C91] rounded-3xl p-8 backdrop-blur-xl">
                                 <div className="flex items-center gap-3 mb-6">
@@ -125,9 +177,46 @@ export default function ProfileSettings() {
                                             placeholder="Tell us about your tech stack..."
                                         />
                                     </div>
+                                    
+                                    <div className="pt-4 border-t border-[#535C91]/50">
+                                        <h3 className="text-white font-medium mb-4">Social Links</h3>
+                                        <div className="space-y-4">
+                                            <div className="relative">
+                                                <GitBranch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="GitHub Profile URL"
+                                                    value={profile.githubLink}
+                                                    onChange={(e) => setProfile({...profile, githubLink: e.target.value})}
+                                                    className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40"
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="LinkedIn Profile URL"
+                                                    value={profile.linkedinLink}
+                                                    onChange={(e) => setProfile({...profile, linkedinLink: e.target.value})}
+                                                    className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40"
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Twitter/X Profile URL"
+                                                    value={profile.twitterLink}
+                                                    onChange={(e) => setProfile({...profile, twitterLink: e.target.value})}
+                                                    className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <motion.button 
                                         whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                        className="bg-[#9290C3] text-[#070F2B] font-bold px-8 py-3 rounded-xl flex items-center gap-2"
+                                        className="bg-[#9290C3] text-[#070F2B] font-bold px-8 py-3 rounded-xl flex items-center gap-2 mt-4"
                                     >
                                         <Save size={18} /> Save Changes
                                     </motion.button>
@@ -143,18 +232,54 @@ export default function ProfileSettings() {
                                     <Lock className="text-[#9290C3]" size={20} />
                                     <h2 className="text-lg font-semibold text-white">Security</h2>
                                 </div>
-                                <form onSubmit={handlePasswordChange} className="space-y-4">
-                                    <input 
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="New password"
-                                        className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40 text-sm"
-                                    />
-                                    <button className="w-full bg-[#535C91]/30 hover:bg-[#535C91]/50 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm">
-                                        Update Password
-                                    </button>
-                                </form>
+                                
+                                {!isOtpSent ? (
+                                    <form onSubmit={handleSendOtp} className="space-y-4">
+                                        <input 
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            placeholder="Enter new password"
+                                            className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40 text-sm"
+                                        />
+                                        <p className="text-xs text-gray-400">An OTP will be sent to your registered email to confirm this change.</p>
+                                        <button 
+                                            type="submit"
+                                            disabled={isSendingOtp}
+                                            className="w-full bg-[#535C91] hover:bg-[#535C91]/80 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm disabled:opacity-50"
+                                        >
+                                            {isSendingOtp ? "Sending..." : "Send OTP"}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <form onSubmit={handlePasswordReset} className="space-y-4">
+                                        <div className="bg-[#070F2B]/50 p-3 rounded-xl border border-[#9290C3]/30 mb-2">
+                                            <p className="text-xs text-[#9290C3]">Email sent to {userEmail}</p>
+                                        </div>
+                                        <input 
+                                            type="text"
+                                            value={otp}
+                                            onChange={(e) => setOtp(e.target.value)}
+                                            placeholder="Enter 6-digit OTP"
+                                            className="w-full bg-[#070F2B] border border-[#535C91] rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-[#9290C3]/40 text-sm tracking-widest text-center"
+                                            maxLength={6}
+                                        />
+                                        <button 
+                                            type="submit"
+                                            disabled={isResetting}
+                                            className="w-full bg-[#9290C3] text-[#070F2B] hover:bg-white font-bold py-2.5 rounded-xl transition-colors text-sm disabled:opacity-50"
+                                        >
+                                            {isResetting ? "Verifying..." : "Verify & Change Password"}
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsOtpSent(false)}
+                                            className="w-full text-xs text-gray-400 hover:text-white mt-2"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </form>
+                                )}
                             </section>
 
                             {/* Danger Zone */}

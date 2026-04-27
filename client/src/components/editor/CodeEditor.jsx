@@ -228,7 +228,7 @@ export default function CodeEditor({
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col bg-[#070F2B] relative">
+    <div className="flex-1 flex flex-col min-h-0 bg-[#070F2B] relative">
       <style>{`
         ${cursors.map(c => `
           .remote-cursor-${c.userId} {

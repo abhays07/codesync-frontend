@@ -14,10 +14,10 @@ import HomePage from "./features/home/HomePage";
 import ProjectDashboard from "./features/projects/ProjectDashboard";
 import OAuthCallback from "./features/auth/OAuthCallback";
 import ProfileSettings from "./features/profile/ProfileSettings";
+import ProfilePage from "./features/profile/ProfilePage";
 import EditorPage from "./pages/EditorPage"; // New Editor Page
-import Subscribe from "./pages/Subscribe";
 import { NotificationProvider } from "./context/NotificationContext";
-import SubscriptionGuard from "./components/SubscriptionGuard";
+// SubscriptionGuard removed from imports
 
 function AppRoutes() {
   const location = useLocation();
@@ -47,29 +47,18 @@ function AppRoutes() {
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/oauth-success" element={<OAuthCallback />} />
 
-            {/* NEW: Subscribe Route */}
-            <Route
-              path="/subscribe"
-              element={
-                <ProtectedRoute>
-                  <Subscribe />
-                </ProtectedRoute>
-              }
-            />
 
             {/* Private Dashboard Route */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <ProjectDashboard />
-                  </SubscriptionGuard>
+                  <ProjectDashboard />
                 </ProtectedRoute>
               }
             />
 
-            {/* Private Profile Route */}
+            {/* Private Profile Settings Route */}
             <Route
               path="/settings"
               element={
@@ -79,14 +68,30 @@ function AppRoutes() {
               }
             />
 
+            {/* Private Profile Page Route */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile/:id"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* NEW: Private Code Editor Route */}
             <Route
               path="/editor/:projectId"
               element={
                 <ProtectedRoute>
-                  <SubscriptionGuard>
-                    <EditorPage />
-                  </SubscriptionGuard>
+                  <EditorPage />
                 </ProtectedRoute>
               }
             />

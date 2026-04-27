@@ -14,7 +14,8 @@ export default function OAuthCallback() {
                 localStorage.setItem('user', JSON.stringify({ 
                     userId: data.userId, 
                     username: data.username,
-                    email: data.email
+                    email: data.email,
+                    avatarUrl: data.avatarUrl
                 }));
                 toast.success(`Welcome back, ${data.username}!`);
                 navigate('/dashboard');

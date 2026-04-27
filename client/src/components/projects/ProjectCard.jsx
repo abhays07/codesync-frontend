@@ -10,6 +10,8 @@ import {
   GitFork,
   AlertTriangle,
   X,
+  Edit3,
+  User,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,12 +21,17 @@ import {
   starProject,
   archiveProject,
   forkProject,
+  updateProject,
 } from "../../api/services/projectService";
+import EditProjectModal from "./EditProjectModal";
+import { getProfile } from "../../api/services/authService";
 
 export default function ProjectCard({ project, index = 0, onRefresh }) {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isForking, setIsForking] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [isStarred, setIsStarred] = useState(!!project.isStarredByMe);
   const [starCount, setStarCount] = useState(project.starCount || 0);
@@ -34,6 +41,18 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
   const isPublic = (project.visibility || "").toUpperCase() === "PUBLIC";
   const storedUser = JSON.parse(localStorage.getItem("user"));
   const userId = storedUser?.userId;
+
+  const [ownerName, setOwnerName] = useState(project.ownerUsername);
+
+  useEffect(() => {
+    if (!project.ownerUsername && project.ownerId) {
+      getProfile(project.ownerId)
+        .then((data) => setOwnerName(data.username))
+        .catch(() => setOwnerName(`User ${project.ownerId}`));
+    } else {
+      setOwnerName(project.ownerUsername);
+    }
+  }, [project.ownerId, project.ownerUsername]);
 
   useEffect(() => {
     setIsStarred(!!project.isStarredByMe);
@@ -65,11 +84,17 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
     e.stopPropagation();
     if (isForking) return;
 
+    if (!storedUser?.isSubscribed) {
+      toast.error("Pro subscription required to fork projects.");
+      navigate("/profile", { state: { proRequired: true } });
+      return;
+    }
+
     // Requirement: Forking creates a personal copy of public project 
     const loadingId = toast.loading("Forking repository...");
     setIsForking(true);
     try {
-      await forkProject(project.projectId, userId);
+      await forkProject(project.projectId, userId, storedUser.username);
       toast.success("Project forked to your workspace!", { id: loadingId });
       onRefresh(); // Refresh to show new fork in "My Clusters"
     } catch (err) {
@@ -91,19 +116,44 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
     }
   };
 
+  const handleEditProject = async (formData) => {
+    setIsUpdating(true);
+    try {
+      await updateProject(project.projectId, formData);
+      toast.success("Project updated successfully.");
+      setIsEditModalOpen(false);
+      onRefresh();
+    } catch (err) {
+      toast.error("Failed to update project.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <>
       <motion.article
         layout
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`group relative overflow-hidden rounded-2xl border border-[#535C91] bg-[#1B1A55]/80 p-5 backdrop-blur-lg ${project.isArchived ? "opacity-60" : ""}`}
+        className={`group relative overflow-hidden rounded-2xl border border-[#535C91] bg-[#1B1A55]/60 p-4 backdrop-blur-lg ${project.isArchived ? "opacity-60" : ""}`}
         whileHover={{ scale: 1.015 }}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <span className="inline-flex items-center justify-center rounded-lg border border-[#535C91] bg-[#070F2B]/80 p-2 text-[#9290C3]">
-            <Folder className="h-4 w-4" />
-          </span>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center rounded-lg border border-[#535C91] bg-[#070F2B]/80 p-1.5 text-[#9290C3]">
+              <Folder className="h-4 w-4" />
+            </span>
+            {ownerName && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); navigate(`/profile/${project.ownerId}`); }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+                title="View Owner Profile"
+              >
+                <User size={12} /> {ownerName}
+              </button>
+            )}
+          </div>
 
           <div className="inline-flex items-center gap-1 bg-[#070F2B]/40 p-1 rounded-lg border border-[#535C91]/30 shadow-inner">
             <button
@@ -127,6 +177,20 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
                 <GitFork
                   className={`h-4 w-4 ${isForking ? "animate-pulse" : ""}`}
                 />
+              </button>
+            )}
+
+            {/* Edit button restricted to owners  */}
+            {project.ownerId === userId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditModalOpen(true);
+                }}
+                className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                title="Edit Project"
+              >
+                <Edit3 className="h-4 w-4" />
               </button>
             )}
 
@@ -161,8 +225,8 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
           </div>
         </div>
 
-        <div className="mb-4 flex items-center justify-between">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#535C91] bg-[#070F2B]/70 px-2.5 py-1 text-[10px] font-bold uppercase text-gray-200">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#535C91] bg-[#070F2B]/70 px-2 py-0.5 text-[10px] font-bold uppercase text-gray-200">
             {isPublic ? (
               <Globe className="h-3.5 w-3.5" />
             ) : (
@@ -175,14 +239,14 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
           </span>
         </div>
 
-        <h3 className="mb-2 text-lg font-semibold text-white truncate">
+        <h3 className="mb-1 text-base font-semibold text-white truncate">
           {project.name}
         </h3>
-        <p className="line-clamp-2 text-sm text-gray-300 min-h-[40px] leading-relaxed">
+        <p className="line-clamp-2 text-xs text-gray-300 min-h-[32px] leading-relaxed">
           {project.description || "No description provided."}
         </p>
 
-        <div className="mt-4 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider text-gray-500 border-t border-[#535C91]/20 pt-4">
+        <div className="mt-3 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider text-gray-500 border-t border-[#535C91]/20 pt-3">
           <span
             className={`flex items-center gap-1.5 transition-colors duration-300 ${isStarred ? "text-yellow-400" : ""}`}
           >
@@ -195,7 +259,7 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
         </div>
 
         <motion.button
-          className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#9290C3] py-2.5 text-sm font-bold text-[#070F2B] shadow-lg transition group-hover:bg-white"
+          className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#9290C3] py-2 text-sm font-bold text-[#070F2B] shadow-lg transition group-hover:bg-white"
           onClick={() => navigate(`/editor/${project.projectId}`)}
         >
           <Play className="h-4 w-4 fill-current" /> Launch Editor
@@ -249,6 +313,15 @@ export default function ProjectCard({ project, index = 0, onRefresh }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EditProjectModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={handleEditProject}
+        submitting={isUpdating}
+        initialData={project}
+      />
     </>
   );
 }
+

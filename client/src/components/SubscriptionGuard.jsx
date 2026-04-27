@@ -46,8 +46,8 @@ const SubscriptionGuard = ({ children }) => {
     }
 
     if (!isSubscribed) {
-        // Redirect to subscribe if isSubscribed is false
-        return <Navigate to="/subscribe" state={{ from: location }} replace />;
+        // Redirect to profile if isSubscribed is false
+        return <Navigate to="/profile" state={{ proRequired: true, from: location }} replace />;
     }
 
     return children;

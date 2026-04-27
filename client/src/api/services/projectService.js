@@ -42,8 +42,12 @@ export const starProject = (projectId, userId) =>
     api.put(`/projects/${projectId}/star?userId=${userId}`);
 
 // Creates a personal copy of a public project 
-export const forkProject = (projectId, userId) => 
-    api.post(`/projects/${projectId}/fork?userId=${userId}`);
+export const forkProject = (projectId, userId, username) => 
+    api.post(`/projects/${projectId}/fork?userId=${userId}&username=${username}`);
+
+// Updates a project 
+export const updateProject = (projectId, projectData) => 
+    api.put(`/projects/${projectId}`, projectData);
 
 // Requests collaboration access on a project
 export const requestCollaborationAccess = (projectId, userId, username) => api.post(`/projects/${projectId}/members/request?userId=${userId}&username=${username}`);

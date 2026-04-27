@@ -108,11 +108,11 @@ export default function CollabPanel({
       }
     });
 
-    const live = users.filter(u => liveParticipantIds.has(String(u.userId)));
+    const live = users.filter(u => onlineIds.has(String(u.userId)));
     const access = users; // Show all users in access list
 
     return { liveParticipants: live, accessList: access };
-  }, [accessUsers, participants, currentUser, activeTypers, liveParticipantIds]);
+  }, [accessUsers, participants, currentUser, activeTypers, onlineIds]);
 
   const liveUsers = liveParticipants.filter((user) => onlineIds.has(String(user.userId)));
   const offlineUsers = accessList.filter((user) => !onlineIds.has(String(user.userId)));
@@ -169,7 +169,7 @@ export default function CollabPanel({
       await fetchAccessUsers();
     } catch (err) {
       console.error('Failed to approve collaborator', err);
-      toast.error('Approval failed');
+      toast.error(err.message || 'Approval failed');
     } finally {
       setApprovingUserId(null);
     }
@@ -183,7 +183,7 @@ export default function CollabPanel({
       await fetchAccessUsers();
     } catch (err) {
       console.error('Failed to remove member', err);
-      toast.error('Failed to remove member');
+      toast.error(err.message || 'Failed to remove member');
     }
   };
 

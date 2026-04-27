@@ -41,6 +41,7 @@ export default function NotificationCenter({ placement = "bottom-end" }) {
       case 'COLLABORATION_ACCEPTED': return <CheckCircle size={16} className="text-green-400" />;
       case 'COLLABORATION_REJECTED': return <XCircle size={16} className="text-red-400" />;
       case 'COMMENT': return <MessageSquare size={16} className="text-green-400" />;
+      case 'COMMIT': return <Check size={16} className="text-purple-400" />;
       default: return <AlertCircle size={16} className="text-yellow-400" />;
     }
   };
@@ -87,7 +88,9 @@ export default function NotificationCenter({ placement = "bottom-end" }) {
         type: 'COLLAB_RESPONSE',
         message: `Hey ${n.senderName}, your request to join ${projectName} has been Approved.`,
         relatedId: projectId,
-        senderEmail: currentUserEmail
+        senderEmail: currentUserEmail,
+        projectName: projectName,
+        recipientName: n.senderName
       }, n.senderEmail ? [n.senderEmail] : []);
 
       // Notify manager
@@ -130,7 +133,9 @@ export default function NotificationCenter({ placement = "bottom-end" }) {
         type: 'COLLABORATION_REJECTED',
         message: `Hey ${n.senderName}, your request to join ${projectName} has been Ignored.`,
         relatedId: projectId,
-        senderEmail: currentUserEmail
+        senderEmail: currentUserEmail,
+        projectName: projectName,
+        recipientName: n.senderName
       }, n.senderEmail ? [n.senderEmail] : []);
     } catch (err) {
       console.error("Failed to notify rejection", err);

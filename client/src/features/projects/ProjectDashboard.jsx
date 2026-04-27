@@ -13,6 +13,7 @@ import {
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import ProjectCard from "../../components/projects/ProjectCard";
 import LoadingSkeleton from "../../components/ui/LoadingSkeleton";
+import api from "../../api/axios";
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -44,6 +45,23 @@ export default function ProjectDashboard() {
 
   const userId = storedUser?.userId;
   const username = storedUser?.username || "Developer";
+  const avatarUrl = storedUser?.avatarUrl;
+  const [isSubscribed, setIsSubscribed] = useState(storedUser?.isSubscribed || false);
+
+  useEffect(() => {
+    const verifySubscription = async () => {
+      if (!userId) return;
+      try {
+        const res = await api.get(`/payments/status/${userId}`);
+        const sub = res.data.isSubscribed || res.data.active || res.data === true;
+        setIsSubscribed(!!sub);
+        localStorage.setItem('user', JSON.stringify({ ...storedUser, isSubscribed: !!sub }));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    verifySubscription();
+  }, [userId]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -94,9 +112,14 @@ export default function ProjectDashboard() {
   }, [debouncedSearch, selectedLang, userId, fetchInitial, activeTab]);
 
   async function handleCreateProject(formData) {
+    if (!isSubscribed) {
+      toast.error("Pro subscription required to create projects.");
+      navigate("/profile", { state: { proRequired: true } });
+      return;
+    }
     setCreating(true);
     try {
-      await createProject({ ...formData, ownerId: userId });
+      await createProject({ ...formData, ownerId: userId, ownerUsername: username });
       toast.success("Project created.");
       setIsModalOpen(false);
       fetchInitial();
@@ -107,14 +130,27 @@ export default function ProjectDashboard() {
     }
   }
 
+  const handleCreateClick = () => {
+    if (!isSubscribed) {
+      toast.error("Pro subscription required to create projects.");
+      navigate("/profile", { state: { proRequired: true } });
+      return;
+    }
+    setIsModalOpen(true);
+  };
+
   return (
     <main className="min-h-screen bg-[#070F2B] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-10 flex flex-col gap-6 rounded-3xl border border-[#535C91] bg-[#1B1A55]/40 p-8 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between shadow-2xl">
           <div className="flex items-center gap-5">
-            <div className="h-16 w-16 rounded-full bg-[#9290C3] flex items-center justify-center text-2xl font-bold text-[#070F2B] shadow-lg">
-              {username[0].toUpperCase()}
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={username} className="h-16 w-16 rounded-full object-cover shadow-lg border-2 border-[#9290C3]/50" />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-[#9290C3] flex items-center justify-center text-2xl font-bold text-[#070F2B] shadow-lg">
+                {username[0].toUpperCase()}
+              </div>
+            )}
             <div>
               <h1 className="text-3xl font-bold text-white">Repositories</h1>
               <p className="text-[#9290C3] opacity-80">Welcome back, @{username}</p>
@@ -132,7 +168,7 @@ export default function ProjectDashboard() {
             </div>
             <motion.button
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleCreateClick}
               className="px-6 py-3 rounded-xl bg-[#9290C3] text-[#070F2B] font-bold shadow-xl flex items-center gap-2"
             >
               <Plus size={20} /> Create New

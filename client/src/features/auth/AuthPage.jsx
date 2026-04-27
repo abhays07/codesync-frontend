@@ -40,7 +40,7 @@ export default function AuthPage({ mode = 'login' }) {
         passwordHash: loginForm.password, // Mapped to backend entity field
       });
 
-      const { token, userId, username, email } = responseData;
+      const { token, userId, username, email, avatarUrl } = responseData;
       let userEmail = email;
       if (!userEmail && token) {
         try {
@@ -51,12 +51,12 @@ export default function AuthPage({ mode = 'login' }) {
         }
       }
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ userId, username, email: userEmail }));
+      localStorage.setItem('user', JSON.stringify({ userId, username, email: userEmail, avatarUrl }));
 
       toast.success(`Welcome, ${username}!`, { id: loadingId });
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Invalid credentials.', { id: loadingId });
+      toast.error(error.message || 'Invalid credentials.', { id: loadingId });
     } finally { setSubmitting(false); }
   }
 
@@ -69,7 +69,7 @@ export default function AuthPage({ mode = 'login' }) {
       toast.success('Account created! Please login.', { id: loadingId });
       navigate('/login');
     } catch (error) {
-      toast.error('Registration failed.', { id: loadingId });
+      toast.error(error.message || 'Registration failed.', { id: loadingId });
     } finally { setSubmitting(false); }
   }
 

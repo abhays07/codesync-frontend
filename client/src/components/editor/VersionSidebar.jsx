@@ -3,7 +3,7 @@ import { History, Save, RotateCcw, Loader2 } from 'lucide-react';
 import { createSnapshot, getFileHistory, restoreSnapshot } from '../../api/services/versionService';
 import toast from 'react-hot-toast';
 
-export default function VersionSidebar({ activeFile, userId, username, onVersionSelect, onRestore }) {
+export default function VersionSidebar({ activeFile, userId, username, onVersionSelect, onRestore, onNotifyCommit }) {
   const [history, setHistory] = useState([]);
   const [commitMessage, setCommitMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,8 +44,13 @@ export default function VersionSidebar({ activeFile, userId, username, onVersion
       setCommitMessage('');
       fetchHistory();
       toast.success("Snapshot saved!");
+      
+      // Notify project members + owner about the new version
+      if (typeof onNotifyCommit === 'function') {
+        onNotifyCommit(commitMessage);
+      }
     } catch (err) {
-      toast.error("Failed to save snapshot");
+      toast.error(err.message || "Failed to save snapshot");
     } finally {
       setLoading(false);
     }
@@ -58,7 +63,7 @@ export default function VersionSidebar({ activeFile, userId, username, onVersion
       toast.success("Version restored!");
       fetchHistory();
     } catch (err) {
-      toast.error("Failed to restore version");
+      toast.error(err.message || "Failed to restore version");
     }
   };
 
