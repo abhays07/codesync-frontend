@@ -8,9 +8,16 @@ export default function OAuthCallback() {
 
     useEffect(() => {
         const finalizeLogin = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const tokenFromUrl = params.get('token');
+
+            if (tokenFromUrl) {
+                localStorage.setItem('token', tokenFromUrl);
+            }
+
             try {
+                // Now getMe() will use the token we just saved
                 const data = await getMe();
-                localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify({ 
                     userId: data.userId, 
                     username: data.username,
@@ -20,6 +27,7 @@ export default function OAuthCallback() {
                 toast.success(`Welcome back, ${data.username}!`);
                 navigate('/dashboard');
             } catch (err) {
+                console.error("OAuth Finalize Error:", err);
                 toast.error("Social login handshake failed.");
                 navigate('/login');
             }
