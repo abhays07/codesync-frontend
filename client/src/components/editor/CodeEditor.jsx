@@ -42,8 +42,11 @@ export default function CodeEditor({
   useEffect(() => {
     const node = document.createElement('div');
     node.className = "monaco-custom-content-widget";
-    // Important: block editor from stealing focus from the widget inputs
+    // Important: block editor from stealing focus from the widget inputs on all devices
     node.addEventListener('mousedown', (e) => e.stopPropagation());
+    node.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
+    node.addEventListener('touchend', (e) => e.stopPropagation(), { passive: false });
+    node.addEventListener('pointerdown', (e) => e.stopPropagation());
     setCommentWidgetNode(node);
     return () => {
       node.remove();
@@ -343,6 +346,17 @@ export default function CodeEditor({
             lineNumbers: 'on',
             renderLineHighlight: 'all',
             automaticLayout: true,
+            wordBasedSuggestions: "allDocuments",
+            suggestOnTriggerCharacters: true,
+            quickSuggestions: { other: true, comments: false, strings: true },
+            snippetSuggestions: "inline",
+            suggest: {
+              showKeywords: true,
+              showSnippets: true,
+              showClasses: true,
+              showFunctions: true,
+              showVariables: true,
+            }
           }}
         />
       </div>

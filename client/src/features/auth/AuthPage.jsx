@@ -3,7 +3,7 @@ import { ArrowRight, Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { loginUser, registerUser } from '../../api/services/authService';
+import { loginUser, registerUser, sendRegistrationOtp } from '../../api/services/authService';
 import AnimatedGridBackground from '../../components/ui/AnimatedGridBackground';
 
 export default function AuthPage({ mode = 'login' }) {
@@ -11,6 +11,8 @@ export default function AuthPage({ mode = 'login' }) {
   const location = useLocation();
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
   const AUTH_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:8081';
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -56,20 +58,48 @@ export default function AuthPage({ mode = 'login' }) {
       toast.success(`Welcome, ${username}!`, { id: loadingId });
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.message || 'Invalid credentials.', { id: loadingId });
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Invalid credentials.';
+      toast.error(errMsg, { id: loadingId });
     } finally { setSubmitting(false); }
   }
 
-  async function handleRegisterSubmit(event) {
+  const validatePassword = (password) => {
+    if (!password || password.length < 8) return "Password must be at least 8 characters long";
+    if (!/.*[A-Z].*/.test(password)) return "Password must contain at least one uppercase letter";
+    if (!/.*[a-z].*/.test(password)) return "Password must contain at least one lowercase letter";
+    if (!/.*\d.*/.test(password)) return "Password must contain at least one number";
+    if (!/.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?].*/.test(password)) return "Password must contain at least one special character";
+    return null;
+  };
+
+  async function handleSendRegistrationOtp(event) {
     event.preventDefault();
+    const pwdError = validatePassword(registerForm.password);
+    if (pwdError) return toast.error(pwdError);
     setSubmitting(true);
-    const loadingId = toast.loading('Creating account...');
+    const loadingId = toast.loading('Sending OTP...');
     try {
-      await registerUser({...registerForm, passwordHash: registerForm.password});
+      await sendRegistrationOtp(registerForm.email, registerForm.username);
+      toast.success('OTP sent to your email!', { id: loadingId });
+      setOtpSent(true);
+    } catch (error) {
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to send OTP.';
+      toast.error(errMsg, { id: loadingId });
+    } finally { setSubmitting(false); }
+  }
+
+  async function handleVerifyAndRegister(event) {
+    event.preventDefault();
+    if (!otp) return toast.error("Please enter the OTP");
+    setSubmitting(true);
+    const loadingId = toast.loading('Verifying and creating account...');
+    try {
+      await registerUser({...registerForm, passwordHash: registerForm.password}, otp);
       toast.success('Account created! Please login.', { id: loadingId });
       navigate('/login');
     } catch (error) {
-      toast.error(error.message || 'Registration failed.', { id: loadingId });
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Registration failed.';
+      toast.error(errMsg, { id: loadingId });
     } finally { setSubmitting(false); }
   }
 
@@ -89,23 +119,24 @@ export default function AuthPage({ mode = 'login' }) {
         <AnimatePresence mode="wait">
           <motion.section key={cardKey} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#1B1A55]/40 border border-[#535C91] p-8 rounded-3xl backdrop-blur-xl shadow-2xl">
             <h2 className="text-2xl font-bold text-white mb-6">{title}</h2>
-            <form onSubmit={isLogin ? handleLoginSubmit : handleRegisterSubmit} className="space-y-4">
+            <form onSubmit={isLogin ? handleLoginSubmit : (otpSent ? handleVerifyAndRegister : handleSendRegistrationOtp)} className="space-y-4">
               {/* Form Fields Mapping */}
               {!isLogin && (
-                <input name="fullName" placeholder="Full Name" required onChange={onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]" />
+                <input name="fullName" disabled={otpSent} placeholder="Full Name" required onChange={onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3] disabled:opacity-50" />
               )}
-              <input name="username" placeholder="Username" required onChange={isLogin ? onLoginFieldChange : onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]" />
+              <input name="username" disabled={!isLogin && otpSent} placeholder="Username" required onChange={isLogin ? onLoginFieldChange : onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3] disabled:opacity-50" />
               {!isLogin && (
-                <input name="email" type="email" placeholder="Email Address" required onChange={onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]" />
+                <input name="email" type="email" disabled={otpSent} placeholder="Email Address" required onChange={onRegisterFieldChange} className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3] disabled:opacity-50" />
               )}
               <div className="relative">
                 <input 
                   name="password" 
+                  disabled={!isLogin && otpSent}
                   type={showPassword ? "text" : "password"} 
                   placeholder="Password" 
                   required 
                   onChange={isLogin ? onLoginFieldChange : onRegisterFieldChange} 
-                  className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3]" 
+                  className="w-full bg-[#070F2B]/80 border border-[#535C91] rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3] disabled:opacity-50" 
                 />
                 <button 
                   type="button" 
@@ -115,10 +146,29 @@ export default function AuthPage({ mode = 'login' }) {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+
+              {!isLogin && otpSent && (
+                <div className="pt-2 animate-pulse-once">
+                  <input 
+                    name="otp" 
+                    value={otp}
+                    placeholder="Enter 6-digit OTP" 
+                    required 
+                    onChange={(e) => setOtp(e.target.value)} 
+                    maxLength={6}
+                    className="w-full bg-[#070F2B] border border-[#9290C3]/50 rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-[#9290C3] text-center tracking-widest" 
+                  />
+                  <p className="text-xs text-gray-400 text-center mt-2">OTP sent to {registerForm.email}</p>
+                </div>
+              )}
               
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={submitting} className="w-full bg-[#9290C3] text-[#070F2B] font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg">
-                {submitting ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight size={18} />
+                {submitting ? 'Processing...' : isLogin ? 'Sign In' : (otpSent ? 'Verify & Register' : 'Send OTP')} <ArrowRight size={18} />
               </motion.button>
+
+              {!isLogin && otpSent && (
+                 <button type="button" onClick={() => setOtpSent(false)} className="w-full text-xs text-gray-400 hover:text-white mt-1">Change Email / Edit Details</button>
+              )}
             </form>
 
             <div className="mt-8">

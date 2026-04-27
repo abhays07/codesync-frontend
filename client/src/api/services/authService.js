@@ -5,10 +5,15 @@ export async function loginUser(payload) {
   return response.data;
 }
 
-export async function registerUser(payload) {
-  const response = await api.post('/auth/register', payload);
+export async function registerUser(payload, otp) {
+  const response = await api.post(`/auth/register?otp=${otp}`, payload);
   return response.data;
 }
+
+export const sendRegistrationOtp = async (email, username) => {
+    const response = await api.post(`/auth/send-registration-otp`, { email, username });
+    return response.data;
+};
 
 export async function getMe() {
     const response = await api.get('/auth/me');

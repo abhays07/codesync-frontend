@@ -247,7 +247,8 @@ export default function EditorPage() {
         setIsReadOnly(!isSubscribed || !accessRes.data);
       } catch (err) {
         console.error("Failed to load environment", err);
-        toast.error("Failed to load environment");
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to load environment";
+        toast.error(`Error loading workspace: ${errMsg}`);
       } finally {
         setLoading(false);
       }

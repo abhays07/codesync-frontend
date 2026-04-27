@@ -16,7 +16,7 @@ export default function CommentOverlay({ lineNumber, comments, onClose, onSubmit
   const mainComments = comments.filter(c => !c.parentCommentId);
   
   return (
-    <div className="bg-[#0A0D14] border border-[#535C91]/50 rounded-lg shadow-2xl w-80 text-sm overflow-hidden z-50 flex flex-col pointer-events-auto">
+    <div className="bg-[#0A0D14] border border-[#535C91]/50 rounded-lg shadow-2xl w-[90vw] sm:w-80 text-sm overflow-hidden z-50 flex flex-col pointer-events-auto">
       <div className="bg-[#1B1A55] px-3 py-2 flex justify-between items-center border-b border-[#535C91]/30">
         <span className="text-xs font-bold text-white flex items-center gap-2">
           <MessageSquare size={14} /> Line {lineNumber}

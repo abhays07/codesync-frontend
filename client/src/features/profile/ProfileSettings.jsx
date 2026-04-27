@@ -63,13 +63,24 @@ export default function ProfileSettings() {
                 fullName: profile.fullName
             }));
         } catch (err) {
-            toast.error(err.message || "Failed to update profile.", { id: loadingId });
+            const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to update profile.";
+            toast.error(errMsg, { id: loadingId });
         }
+    };
+
+    const validatePassword = (password) => {
+        if (!password || password.length < 8) return "Password must be at least 8 characters long";
+        if (!/.*[A-Z].*/.test(password)) return "Password must contain at least one uppercase letter";
+        if (!/.*[a-z].*/.test(password)) return "Password must contain at least one lowercase letter";
+        if (!/.*\d.*/.test(password)) return "Password must contain at least one number";
+        if (!/.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?].*/.test(password)) return "Password must contain at least one special character";
+        return null;
     };
 
     const handleSendOtp = async (e) => {
         e.preventDefault();
-        if (newPassword.length < 8) return toast.error("Min 8 characters required for new password");
+        const pwdError = validatePassword(newPassword);
+        if (pwdError) return toast.error(pwdError);
         setIsSendingOtp(true);
         const loadingId = toast.loading("Sending OTP to your email...");
         try {
