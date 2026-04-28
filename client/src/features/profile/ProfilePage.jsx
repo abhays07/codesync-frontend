@@ -111,7 +111,7 @@ export default function ProfilePage() {
             let parsedOrderData = typeof orderData === 'string' ? JSON.parse(orderData) : orderData;
 
             const options = {
-                key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_...',
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_ShfrX6g8isRI3w',
                 amount: 49900,
                 currency: 'INR',
                 name: 'CodeSync Pro',
