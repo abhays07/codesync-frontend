@@ -48,7 +48,12 @@ export default function NotificationCenter({ placement = "bottom-end" }) {
 
   const formatTimeAgo = (dateString) => {
     if (!dateString) return '';
-    const diffMs = Date.now() - new Date(dateString).getTime();
+    // Force UTC if the backend timestamp lacks timezone info (fixes 5h offset)
+    let safeDate = dateString;
+    if (!safeDate.endsWith('Z') && !safeDate.includes('+')) {
+      safeDate += 'Z';
+    }
+    const diffMs = Date.now() - new Date(safeDate).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;

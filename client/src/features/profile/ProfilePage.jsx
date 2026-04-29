@@ -7,6 +7,7 @@ import { getOwnerProjects } from '../../api/services/projectService';
 import { format } from 'date-fns';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import AnimatedGridBackground from '../../components/ui/AnimatedGridBackground';
 
 export default function ProfilePage() {
     const navigate = useNavigate();
@@ -160,8 +161,9 @@ export default function ProfilePage() {
     }
 
     return (
-        <main className="min-h-screen bg-[#070F2B] p-6 sm:p-10 text-white selection:bg-[#9290C3]/30">
-            <div className="max-w-5xl mx-auto">
+        <main className="relative min-h-screen bg-[#070F2B] p-6 sm:p-10 text-white selection:bg-[#9290C3]/30">
+            <AnimatedGridBackground />
+            <div className="relative z-10 max-w-5xl mx-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit">
                         <ArrowLeft size={18} /> Back to Dashboard

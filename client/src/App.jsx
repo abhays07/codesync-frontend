@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toaster } from "react-hot-toast";
 import {
@@ -9,6 +10,7 @@ import {
 } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StickyNavbar from "./components/layout/StickyNavbar";
+import Footer from "./components/layout/Footer";
 import AuthPage from "./features/auth/AuthPage";
 import HomePage from "./features/home/HomePage";
 import ProjectDashboard from "./features/projects/ProjectDashboard";
@@ -24,6 +26,25 @@ function AppRoutes() {
 
   // Logic: Hide global navbar if user is in the editor to maximize space
   const isEditor = location.pathname.startsWith("/editor/");
+
+  useEffect(() => {
+    const titles = {
+      '/': 'CodeSync | Home',
+      '/login': 'CodeSync | Login',
+      '/register': 'CodeSync | Register',
+      '/dashboard': 'CodeSync | Dashboard',
+      '/settings': 'CodeSync | Settings',
+      '/profile': 'CodeSync | Profile',
+    };
+
+    if (location.pathname.startsWith('/editor/')) {
+      document.title = 'CodeSync | Editor';
+    } else if (location.pathname.startsWith('/profile/')) {
+      document.title = 'CodeSync | Profile';
+    } else {
+      document.title = titles[location.pathname] || 'CodeSync';
+    }
+  }, [location.pathname]);
 
   return (
     <>
@@ -101,6 +122,7 @@ function AppRoutes() {
           </Routes>
         </motion.div>
       </AnimatePresence>
+      {!isEditor && <Footer />}
     </>
   );
 }

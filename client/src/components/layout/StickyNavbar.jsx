@@ -20,8 +20,8 @@ export default function StickyNavbar() {
         <header className="sticky top-0 z-40 border-b border-[#535C91]/60 bg-[#070F2B]/80 backdrop-blur-md">
             <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
                 <NavLink to="/" className="flex items-center gap-2" onClick={closeMenu}>
-                    <div className="rounded-lg bg-[#1B1A55] p-2">
-                        <Code2 className="h-5 w-5 text-[#9290C3]" />
+                    <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-[#1B1A55]">
+                        <img src="/logo.png" alt="CodeSync Logo" className="h-full w-full object-cover" />
                     </div>
                     <span className="font-bold text-white">CodeSync</span>
                 </NavLink>

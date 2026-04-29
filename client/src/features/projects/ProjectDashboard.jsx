@@ -13,6 +13,7 @@ import {
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import ProjectCard from "../../components/projects/ProjectCard";
 import LoadingSkeleton from "../../components/ui/LoadingSkeleton";
+import AnimatedGridBackground from "../../components/ui/AnimatedGridBackground";
 import api from "../../api/axios";
 
 function useDebounce(value, delay) {
@@ -140,8 +141,9 @@ export default function ProjectDashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-[#070F2B] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="relative min-h-screen bg-[#070F2B] px-4 py-8 sm:px-6 lg:px-8">
+      <AnimatedGridBackground />
+      <div className="relative z-10 mx-auto max-w-7xl">
         <header className="mb-10 flex flex-col gap-6 rounded-3xl border border-[#535C91] bg-[#1B1A55]/40 p-8 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between shadow-2xl">
           <div className="flex items-center gap-5">
             {avatarUrl ? (
