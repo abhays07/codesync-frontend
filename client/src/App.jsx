@@ -17,6 +17,11 @@ import ProjectDashboard from "./features/projects/ProjectDashboard";
 import OAuthCallback from "./features/auth/OAuthCallback";
 import ProfileSettings from "./features/profile/ProfileSettings";
 import ProfilePage from "./features/profile/ProfilePage";
+import RequireAdmin from "./components/RequireAdmin";
+import AdminLayout from "./features/admin/AdminLayout";
+import UserManagement from "./features/admin/UserManagement";
+import AdminProjects from "./features/admin/AdminProjects";
+import AdminSubscriptions from "./features/admin/AdminSubscriptions";
 import EditorPage from "./pages/EditorPage"; // New Editor Page
 import { NotificationProvider } from "./context/NotificationContext";
 // SubscriptionGuard removed from imports
@@ -35,12 +40,15 @@ function AppRoutes() {
       '/dashboard': 'CodeSync | Dashboard',
       '/settings': 'CodeSync | Settings',
       '/profile': 'CodeSync | Profile',
+      '/admin': 'CodeSync | Admin Console',
     };
 
     if (location.pathname.startsWith('/editor/')) {
       document.title = 'CodeSync | Editor';
     } else if (location.pathname.startsWith('/profile/')) {
       document.title = 'CodeSync | Profile';
+    } else if (location.pathname.startsWith('/admin/')) {
+      document.title = 'CodeSync | Admin Console';
     } else {
       document.title = titles[location.pathname] || 'CodeSync';
     }
@@ -116,6 +124,17 @@ function AppRoutes() {
                 </ProtectedRoute>
               }
             />
+
+            {/* ADMIN ROUTES */}
+            <Route path="/admin" element={<ProtectedRoute><RequireAdmin /></ProtectedRoute>}>
+              <Route element={<AdminLayout />}>
+                <Route index element={<Navigate to="users" replace />} />
+                <Route path="users" element={<UserManagement />} />
+                <Route path="projects" element={<AdminProjects />} />
+                <Route path="subscriptions" element={<AdminSubscriptions />} />
+                <Route path="settings" element={<div className="p-8 text-white">System Settings</div>} />
+              </Route>
+            </Route>
 
             {/* Catch-all Redirect */}
             <Route path="*" element={<Navigate to="/" replace />} />

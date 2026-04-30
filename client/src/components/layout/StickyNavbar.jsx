@@ -1,12 +1,20 @@
 import { Code2, Home, LayoutDashboard, LogIn, UserPlus, Menu, X } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import NotificationCenter from './NotificationCenter';
+import { getUserRole } from '../../utils/auth';
 
 export default function StickyNavbar() {
     const token = localStorage.getItem('token');
     const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    useEffect(() => {
+        if (token) {
+            setIsAdmin(getUserRole() === 'ADMIN');
+        }
+    }, [token]);
 
     const handleLogout = () => {
         localStorage.clear();
@@ -44,6 +52,9 @@ export default function StickyNavbar() {
                     {token ? (
                         <>
                             <NavLink to="/dashboard" className="text-sm text-gray-300 hover:text-white">Dashboard</NavLink>
+                            {isAdmin && (
+                                <NavLink to="/admin" className="text-sm font-bold text-red-400 hover:text-red-300">Admin</NavLink>
+                            )}
                             <NavLink to="/profile" className="text-sm text-gray-300 hover:text-white">Profile</NavLink>
                             <NotificationCenter />
                             <button onClick={handleLogout} className="text-sm font-medium text-red-400 hover:text-red-300">Logout</button>
@@ -66,6 +77,9 @@ export default function StickyNavbar() {
                         {token ? (
                             <>
                                 <NavLink to="/dashboard" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-[#1B1A55] hover:text-white">Dashboard</NavLink>
+                                {isAdmin && (
+                                    <NavLink to="/admin" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-bold text-red-400 hover:bg-[#1B1A55] hover:text-red-300">Admin Console</NavLink>
+                                )}
                                 <NavLink to="/profile" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-[#1B1A55] hover:text-white">Profile</NavLink>
                                 <button onClick={handleLogout} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300">Logout</button>
                             </>
