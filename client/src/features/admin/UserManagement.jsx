@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../../api/axios';
 import { toast } from 'react-hot-toast';
 
 const UserManagement = () => {
@@ -12,12 +12,7 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:8080/api/v1/admin/users', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/admin/users');
       setUsers(response.data);
     } catch (error) {
       console.error(error);
@@ -30,12 +25,7 @@ const UserManagement = () => {
   const handleDelete = async (id) => {
     if(window.confirm("Are you sure you want to ban/delete this user?")) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:8080/api/v1/admin/users/${id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        await api.delete(`/admin/users/${id}`);
         setUsers(users.filter(u => u.userId !== id));
         toast.success('User removed successfully');
       } catch (error) {
