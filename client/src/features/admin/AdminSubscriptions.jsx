@@ -30,7 +30,7 @@ const AdminSubscriptions = () => {
       <p className="text-[#9A98C3] mb-8">Track platform revenue and active subscriptions.</p>
       
       <div className="bg-[#14122D] border border-[#2C2A4A] rounded-xl overflow-hidden shadow-2xl shadow-black/50 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[600px]">
+        <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="bg-[#1E1C3A] border-b border-[#2C2A4A]">
               <th className="p-4 font-semibold text-[#9A98C3]">ID</th>

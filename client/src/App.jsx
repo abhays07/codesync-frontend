@@ -22,6 +22,7 @@ import AdminLayout from "./features/admin/AdminLayout";
 import UserManagement from "./features/admin/UserManagement";
 import AdminProjects from "./features/admin/AdminProjects";
 import AdminSubscriptions from "./features/admin/AdminSubscriptions";
+import AdminSettings from "./features/admin/AdminSettings";
 import EditorPage from "./pages/EditorPage"; // New Editor Page
 import { NotificationProvider } from "./context/NotificationContext";
 // SubscriptionGuard removed from imports
@@ -132,7 +133,7 @@ function AppRoutes() {
                 <Route path="users" element={<UserManagement />} />
                 <Route path="projects" element={<AdminProjects />} />
                 <Route path="subscriptions" element={<AdminSubscriptions />} />
-                <Route path="settings" element={<div className="p-8 text-white">System Settings</div>} />
+                <Route path="settings" element={<AdminSettings />} />
               </Route>
             </Route>
 

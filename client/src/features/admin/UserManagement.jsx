@@ -44,8 +44,8 @@ const UserManagement = () => {
       <h1 className="text-3xl font-bold mb-2">User Management</h1>
       <p className="text-[#9A98C3] mb-8">Manage developer accounts and platform access.</p>
       
-      <div className="bg-[#14122D] border border-[#2C2A4A] rounded-xl overflow-hidden shadow-2xl shadow-black/50">
-        <table className="w-full text-left border-collapse">
+      <div className="bg-[#14122D] border border-[#2C2A4A] rounded-xl overflow-hidden shadow-2xl shadow-black/50 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="bg-[#1E1C3A] border-b border-[#2C2A4A]">
               <th className="p-4 font-semibold text-[#9A98C3]">ID</th>

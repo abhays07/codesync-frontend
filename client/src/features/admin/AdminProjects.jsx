@@ -30,7 +30,7 @@ const AdminProjects = () => {
       <p className="text-[#9A98C3] mb-8">View and manage all projects across the platform.</p>
       
       <div className="bg-[#14122D] border border-[#2C2A4A] rounded-xl overflow-hidden shadow-2xl shadow-black/50 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[600px]">
+        <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="bg-[#1E1C3A] border-b border-[#2C2A4A]">
               <th className="p-4 font-semibold text-[#9A98C3]">ID</th>
@@ -42,9 +42,9 @@ const AdminProjects = () => {
           </thead>
           <tbody>
             {projects.map(project => (
-              <tr key={project.id} className="border-b border-[#2C2A4A]/50 hover:bg-[#1E1C3A]/50 transition-colors">
-                <td className="p-4 text-[#9A98C3]">#{project.id}</td>
-                <td className="p-4 font-medium text-blue-400">{project.title}</td>
+              <tr key={project.projectId} className="border-b border-[#2C2A4A]/50 hover:bg-[#1E1C3A]/50 transition-colors">
+                <td className="p-4 text-[#9A98C3]">#{project.projectId}</td>
+                <td className="p-4 font-medium text-blue-400">{project.name}</td>
                 <td className="p-4 text-[#9A98C3] uppercase">{project.language}</td>
                 <td className="p-4 text-[#9A98C3]">#{project.ownerId}</td>
                 <td className="p-4 text-[#9A98C3]">

@@ -13,7 +13,9 @@ build/
 # --- IDE/Environment ---
 .env
 .env.local
+.env.development
 .env.development.local
+.env.production
 .env.test.local
 .env.production.local
 
@@ -25,3 +27,12 @@ yarn-error.log*
 # --- System ---
 .DS_Store
 Thumbs.db
+
+# --- Editors/IDEs ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
