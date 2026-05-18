@@ -32,7 +32,7 @@ export function NotificationProvider({ children }) {
 
     // Connect to WebSocket
     const client = new Client({
-      webSocketFactory: () => new SockJS(import.meta.env.VITE_WS_NOTIF_URL ?? 'http://65.1.129.94:9000/ws-notifications', null, { withCredentials: true }),
+      webSocketFactory: () => new SockJS(import.meta.env.VITE_WS_NOTIF_URL ?? 'http://3.108.1.211.nip.io:9000/ws-notifications', null, { withCredentials: true }),
       connectHeaders: {
         Authorization: `Bearer ${token}`
       },

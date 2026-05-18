@@ -13,7 +13,7 @@ export default function AuthPage({ mode = 'login' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const AUTH_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://65.1.129.94.nip.io:9000/api/v1/auth';
+  const AUTH_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://3.108.1.211.nip.io:9000/api/v1/auth';
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
@@ -29,7 +29,7 @@ export default function AuthPage({ mode = 'login' }) {
   const title = isLogin ? 'Welcome Back' : 'Create Your Account';
   const handleOAuthLogin = (provider) => {
     // FORCE absolute URL to ensure we leave the Netlify domain and hit the AWS Gateway directly
-    const GATEWAY_URL = "http://65.1.129.94.nip.io:9000";
+    const GATEWAY_URL = "http://3.108.1.211.nip.io:9000";
     window.location.href = `${GATEWAY_URL}/api/v1/auth/oauth2/authorization/${provider}`;
   };
   const cardKey = useMemo(() => `${location.pathname}-${mode}`, [location.pathname, mode]);

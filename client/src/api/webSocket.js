@@ -1,7 +1,7 @@
 import SockJS from 'sockjs-client';
 import { Stomp } from '@stomp/stompjs';
 
-const SOCKET_URL = import.meta.env.VITE_WS_URL ?? 'http://65.1.129.94:9000/ws-collab';
+const SOCKET_URL = import.meta.env.VITE_WS_URL ?? 'http://3.108.1.211.nip.io:9000/ws-collab';
 
 let stompClient = null;
 let connectPromise = null;

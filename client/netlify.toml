@@ -1,18 +1,18 @@
 [[redirects]]
   from = "/api/*"
-  to = "http://65.1.129.94.nip.io:9000/api/:splat"
+  to = "http://3.108.1.211.nip.io:9000/api/:splat"
   status = 200
   force = true
 
 [[redirects]]
   from = "/ws-notifications/*"
-  to = "http://65.1.129.94.nip.io:9000/ws-notifications/:splat"
+  to = "http://3.108.1.211.nip.io:9000/ws-notifications/:splat"
   status = 200
   force = true
 
 [[redirects]]
   from = "/ws-collab/*"
-  to = "http://65.1.129.94.nip.io:9000/ws-collab/:splat"
+  to = "http://3.108.1.211.nip.io:9000/ws-collab/:splat"
   status = 200
   force = true
 
